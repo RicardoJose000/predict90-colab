@@ -1,0 +1,308 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PREDICT/90 Guide</title><style>
+:root{color-scheme:light dark}
+body{font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:860px;margin:0 auto;padding:24px 16px;color:#0b0b0b;background:#fcfcfb}
+h1{font-size:28px;line-height:1.2}h2{margin-top:36px;padding-top:12px;border-top:1px solid #e6e5e0}
+table{border-collapse:collapse;width:100%;font-size:15px;display:block;overflow-x:auto}th,td{border:1px solid #e6e5e0;padding:6px 10px;text-align:left}
+th{background:#f1f0ec}code{background:#f1f0ec;padding:1px 5px;border-radius:4px;font-size:.92em}a{color:#2a78d6}
+@media (prefers-color-scheme:dark){body{background:#1a1a19;color:#f0efec}th,code{background:#2a2a28}th,td,h2{border-color:#3a3a37}a{color:#6aa8f0}}
+</style></head><body><h1>PREDICT/90 Pro - Football Match Predictor</h1>
+<p>Home / Draw / Away probabilities for 38 leagues, Over/Under 2.5, BTTS, value bets with Kelly stakes,
+corners, cards, shots, 4 daily accas, predictions by strength, injuries, lineups and a bet tracker. Results go to an Excel file every day.</p>
+<hr />
+<h2>A. On your PC (Windows)</h2>
+<ol>
+<li>Install <strong>Python 3.10 or newer</strong> from <a href="https://www.python.org/downloads/">https://www.python.org/downloads/</a><ul>
+<li>on the first install screen tick <strong>&quot;Add python.exe to PATH&quot;</strong></li>
+</ul>
+</li>
+<li>Unzip this folder anywhere (for example Documents).</li>
+<li>Double-click <strong><code>RUN_ME.bat</code></strong><ul>
+<li>first time only: it installs the packages (2-5 min), downloads the data (2-4 min) and trains the models (about 5 min)</li>
+<li>at the end the Excel file opens: <code>output/predictions_YYYY-MM-DD.xlsx</code></li>
+</ul>
+</li>
+<li>Next days: double-click <code>RUN_ME.bat</code> again. A normal day takes about 1-2 minutes. The models train again by themselves every 7 days.</li>
+</ol>
+<p>Close the Excel files before you run it, so they can be updated.</p>
+<table>
+<thead>
+<tr>
+  <th>File</th>
+  <th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><code>RUN_ME.bat</code></td>
+  <td>daily predictions -&gt; Excel</td>
+</tr>
+<tr>
+  <td><code>OPEN_NOTEBOOK.bat</code></td>
+  <td>opens the Jupyter notebook (all charts, backtest, tests)</td>
+</tr>
+<tr>
+  <td><code>SCHEDULE_DAILY.bat</code></td>
+  <td>makes Windows run the predictions by itself every day at a time you choose (the PC must be on)</td>
+</tr>
+<tr>
+  <td><code>settings.json</code></td>
+  <td>your settings: leagues, thresholds, bankroll, acca rules (every line is explained inside)</td>
+</tr>
+<tr>
+  <td><code>Backtest_Report.html</code></td>
+  <td>the full backtest report with charts. Opens in any browser, also on your phone</td>
+</tr>
+</tbody>
+</table>
+<h2>B. On your phone or any browser (Google Colab)</h2>
+<p>Nothing to upload. Sign in to Google in your browser first.</p>
+<ol>
+<li>Open this link: <a href="https://colab.research.google.com/github/RicardoJose000/predict90-colab/blob/main/Football_Predictor_Colab.ipynb">Football Predictor in Google Colab</a></li>
+<li>Tap <strong>Runtime -&gt; Run all</strong>. If Colab says the notebook is not from Google, tap <strong>Run anyway</strong>.</li>
+<li>Allow access to Google Drive when asked. Your tracker, models, settings and key are kept in the <code>Football_Predictor_files</code> folder in My Drive.</li>
+<li>Results appear in the notebook, part 2. The Excel and page files are saved in <code>Football_Predictor_files/output</code> on your Drive. Open them from the Drive app.</li>
+</ol>
+<p>The first run in Colab takes longer (about 15-25 min, the free machine is slower). Next runs within 7 days are faster because the models stay on your Drive. Each new Colab session takes the newest code, so fixes reach you by themselves.</p>
+<h2>C. API-Football key (free) - for injuries, lineups, more fixtures and odds</h2>
+<ol>
+<li>Sign up at <a href="https://dashboard.api-football.com">https://dashboard.api-football.com</a> (free plan, 100 requests a day).</li>
+<li>Profile -&gt; <strong>My Access</strong> -&gt; copy the API-KEY.</li>
+<li>Open the first cell of the notebook and paste it at <code>API_FOOTBALL_KEY = &quot;&quot;</code>, then run the cell. It is saved for you.
+Or in Notepad: write <code>API_FOOTBALL_KEY=your_key</code>, and save it in this folder as <code>.env</code> with &quot;Save as type: All files&quot;.</li>
+</ol>
+<p>Without a key everything still works, but only with the matches published by football-data.co.uk (mostly on Fridays and Tuesdays), and without injuries.
+A daily run uses about 10-40 of the 100 free requests. The free plan only gives today and tomorrow, and 10 requests a minute, so the first run of the day takes a few minutes longer.</p>
+<hr />
+<h2>What is inside</h2>
+<p><strong>Data</strong> - football-data.co.uk: results, shots and bookmaker odds for 38 leagues (22 main leagues since 2005/06, 16 more since 2012), upcoming fixtures with odds. API-Football: today/tomorrow fixtures, Bet365 odds (1X2, O/U 2.5, BTTS), injuries, lineups. Team names are cleaned, and new spellings in the source are found automatically.</p>
+<p><strong>Features</strong> (all from before kickoff) - Elo ratings with promotion and relegation handled, form over the last 5 and 10 matches, home form at home and away form away, goals for and against, shots on target, attack/defence strength, expected goals, Poisson probabilities, head to head, rest days, matches played, league trends, bookmaker probabilities with the margin removed.</p>
+<p><strong>Models</strong> - Logistic Regression + XGBoost + LightGBM + Neural Network, combined by a stacking meta model trained on the newest 15% of matches, which also calibrates the probabilities. Tuned with Optuna on seasons before 2018/19 (<code>models/best_params.json</code>). A second model handles matches with no odds yet. Separate models for Over/Under 2.5 and BTTS.</p>
+<p><strong>Backtest</strong> - walk-forward, season by season: train only on the past, predict the next season. Accuracy, log-loss, Brier score, calibration, accuracy by confidence, by season and by league, significance test against the bookmaker, value-bet profit, and the daily acca slips settled day by day.</p>
+<p><strong>Betting tools</strong> - value bets (chance x odds &gt;= 1.05), quarter-Kelly stakes capped at 3% of the bankroll, a bet tracker with automatic settling that logs each acca apart, and 4 accas (22 main leagues by default, total odds 4.5-7, within one sheet each match once). <strong>Main acca</strong>: up to 5 a day, win, double chance and over/under 2.5, legs 50%+, at most 2 of one type. Its profit is tested: it lost at average odds. <strong>Strong acca</strong>: favourites to win only, every leg 65%+, 1 or 2 a day and only on some days. A small profit in the test, not proven. <strong>Banger acca</strong>: favourites to win only, every leg 70%+, about 40 a season. A small profit in the test, not proven: acca numbers move a lot with tiny changes. <strong>Other acca</strong>: up to 5 a day, BTTS, over 1.5, under 3.5, favourite to score, underdog +1.5, favourite or over 2.5, corners, corner 1X2, cards and shots. No old odds exist for these, so accuracy is tested but profit is not. Where no real odds are found, only bets 60%+ sure are used and the price is marked <code>estimate</code>: check the real price at your bookmaker. 1up and 2up are not included, because the free data has no goal minutes. Part 7 of the notebook has all the tests.</p>
+<p><strong>Results page</strong> - every run also saves <code>output/predictions_...html</code>: the same results as the Excel file, as one page with tabs and filters, that works on a phone and with no internet. On a PC it opens by itself after <code>RUN_ME.bat</code>. In Google Colab it shows inside the notebook, part 2.</p>
+<p><strong>Tabs (the Excel file and the page)</strong> - <code>My picks</code>: my own recommendation, 1 long acca and up to 2 safer accas, no match used twice. About break-even in the test, not a sure profit (part 7 of the notebook). <code>All</code>, <code>Bangers</code> (75%+), <code>Strong</code> (65-75%) and <code>Weak</code> (below 50%), with <code>Good</code> (50-65%) inside <code>All</code>. The 4 accas. <code>Top favourites</code>, <code>Top goals</code>, <code>Top BTTS</code> and <code>Top corners</code>: the top matches of each league, 3 by default (<code>top_n_per_league</code> in <code>settings.json</code>). <code>Over-Under 2.5</code>, <code>BTTS</code>, <code>Goal lines</code>, <code>Team to score</code>, <code>Underdog +1.5</code>, <code>Corners</code>, <code>Cards</code> and <code>Shots</code>: the chance of each bet for every match, with real odds when there are any. Filter by day and league, also <code>League type</code> (Main or Other).</p>
+<h2>Check the numbers yourself</h2>
+<p>In the notebook, part 4, set <code>RUN_BACKTEST = True</code> and press Run All (about 1 hour). With <code>USE_SNAPSHOT = True</code> it uses the saved data in <code>data_snapshot/</code> and fixed random seeds, so you get the same numbers as in <code>Backtest_Report.html</code> on the library versions in <code>requirements.txt</code>. Other versions, like Google Colab's, give about the same picks but can move the acca numbers.</p>
+<h2>Bet tracker</h2>
+<p><code>output/bet_tracker.xlsx</code> logs every strong pick, value bet and acca slip, and settles them by itself when the results arrive. Write <code>Y</code> in the <code>Played</code> column for what you really bet, and change <code>Stake</code> if you want. The <code>Summary</code> sheet shows your real record. Close the file before the next run.</p>
+<h2>Leagues (codes for settings.json)</h2>
+<table>
+<thead>
+<tr>
+  <th>Code</th>
+  <th>League</th>
+  <th>Code</th>
+  <th>League</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>E0</td>
+  <td>England Premier League</td>
+  <td>ARG</td>
+  <td>Argentina Liga Profesional</td>
+</tr>
+<tr>
+  <td>E1</td>
+  <td>England Championship</td>
+  <td>AUT</td>
+  <td>Austria Bundesliga</td>
+</tr>
+<tr>
+  <td>E2</td>
+  <td>England League One</td>
+  <td>BRA</td>
+  <td>Brazil Serie A</td>
+</tr>
+<tr>
+  <td>E3</td>
+  <td>England League Two</td>
+  <td>CHN</td>
+  <td>China Super League</td>
+</tr>
+<tr>
+  <td>EC</td>
+  <td>England National League</td>
+  <td>DNK</td>
+  <td>Denmark Superliga</td>
+</tr>
+<tr>
+  <td>SC0</td>
+  <td>Scotland Premiership</td>
+  <td>FIN</td>
+  <td>Finland Veikkausliiga</td>
+</tr>
+<tr>
+  <td>SC1</td>
+  <td>Scotland Championship</td>
+  <td>IRL</td>
+  <td>Ireland Premier Division</td>
+</tr>
+<tr>
+  <td>SC2</td>
+  <td>Scotland League One</td>
+  <td>JPN</td>
+  <td>Japan J1 League</td>
+</tr>
+<tr>
+  <td>SC3</td>
+  <td>Scotland League Two</td>
+  <td>MEX</td>
+  <td>Mexico Liga MX</td>
+</tr>
+<tr>
+  <td>D1</td>
+  <td>Germany Bundesliga</td>
+  <td>NOR</td>
+  <td>Norway Eliteserien</td>
+</tr>
+<tr>
+  <td>D2</td>
+  <td>Germany 2. Bundesliga</td>
+  <td>POL</td>
+  <td>Poland Ekstraklasa</td>
+</tr>
+<tr>
+  <td>I1</td>
+  <td>Italy Serie A</td>
+  <td>ROU</td>
+  <td>Romania Liga 1</td>
+</tr>
+<tr>
+  <td>I2</td>
+  <td>Italy Serie B</td>
+  <td>RUS</td>
+  <td>Russia Premier League</td>
+</tr>
+<tr>
+  <td>SP1</td>
+  <td>Spain La Liga</td>
+  <td>SWE</td>
+  <td>Sweden Allsvenskan</td>
+</tr>
+<tr>
+  <td>SP2</td>
+  <td>Spain Segunda Division</td>
+  <td>SWZ</td>
+  <td>Switzerland Super League</td>
+</tr>
+<tr>
+  <td>F1</td>
+  <td>France Ligue 1</td>
+  <td>USA</td>
+  <td>USA MLS</td>
+</tr>
+<tr>
+  <td>F2</td>
+  <td>France Ligue 2</td>
+  <td></td>
+  <td></td>
+</tr>
+<tr>
+  <td>N1</td>
+  <td>Netherlands Eredivisie</td>
+  <td></td>
+  <td></td>
+</tr>
+<tr>
+  <td>B1</td>
+  <td>Belgium Pro League</td>
+  <td></td>
+  <td></td>
+</tr>
+<tr>
+  <td>P1</td>
+  <td>Portugal Primeira Liga</td>
+  <td></td>
+  <td></td>
+</tr>
+<tr>
+  <td>T1</td>
+  <td>Turkey Super Lig</td>
+  <td></td>
+  <td></td>
+</tr>
+<tr>
+  <td>G1</td>
+  <td>Greece Super League</td>
+  <td></td>
+  <td></td>
+</tr>
+</tbody>
+</table>
+<h2>Folders</h2>
+<table>
+<thead>
+<tr>
+  <th>Folder</th>
+  <th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><code>p90/</code></td>
+  <td>the full source code, yours to keep</td>
+</tr>
+<tr>
+  <td><code>data_snapshot/</code></td>
+  <td>clean data used for the backtest</td>
+</tr>
+<tr>
+  <td><code>data/</code></td>
+  <td>downloaded data (filled by the first run)</td>
+</tr>
+<tr>
+  <td><code>models/</code></td>
+  <td>tuned settings + trained models</td>
+</tr>
+<tr>
+  <td><code>output/</code></td>
+  <td>Excel predictions, bet tracker, backtest results</td>
+</tr>
+<tr>
+  <td><code>team_aliases.csv</code></td>
+  <td>team names API-Football -&gt; football-data. If a team is skipped, add a line here</td>
+</tr>
+</tbody>
+</table>
+<h2>If something goes wrong</h2>
+<table>
+<thead>
+<tr>
+  <th>Message</th>
+  <th>What to do</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>Python is not installed</td>
+  <td>Install it (part A) and tick &quot;Add python.exe to PATH&quot;</td>
+</tr>
+<tr>
+  <td>DLL load failed ... An Application Control policy has blocked this file</td>
+  <td>Windows Smart App Control is blocking a library file. This is not a folder problem or a project error. Try <code>python -m pip install &quot;pandas==2.2.3&quot;</code> and run again. If it stays, use Google Colab (part B), where nothing runs on your PC. Or turn it off: Windows Security &gt; App &amp; browser control &gt; Smart App Control settings &gt; Off. That is your PC's security, so your choice: on older Windows 11 turning it back on can need a reset.</td>
+</tr>
+<tr>
+  <td>Unable to allocate ... (memory error)</td>
+  <td>Training needs about 2-3 GB of free memory. Close other programs, mainly browsers, and run again</td>
+</tr>
+<tr>
+  <td>bet_tracker.xlsx is open in Excel</td>
+  <td>Close it and run again</td>
+</tr>
+<tr>
+  <td>Could not download the football data</td>
+  <td>Check your internet and run again</td>
+</tr>
+<tr>
+  <td>skipped teams with unknown names</td>
+  <td>Add the team to <code>team_aliases.csv</code></td>
+</tr>
+<tr>
+  <td>No upcoming matches found</td>
+  <td>No fixtures are published yet. Add the API key (part C) or try later</td>
+</tr>
+</tbody>
+</table>
+<p>These are probabilities, not guarantees. Bet only what you can afford to lose.</p>
+</body></html>

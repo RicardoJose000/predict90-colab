@@ -1,0 +1,6 @@
+.env
+models/*.joblib
+output/bet_tracker*.xlsx
+output/predictions_*
+data/
+__pycache__/
