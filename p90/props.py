@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import nbinom, poisson
 
-from .config import MAIN_LEAGUES, SEED
+from .config import MAIN_LEAGUES, SEED, league_type
 from .features import FEATURES_GOALS
 from .models import StackModel
 
@@ -243,8 +243,8 @@ def _balanced_line(lines: dict):
 
 def _count_tab(common, d, stat, label):
     """Expected number, chance at the bookmaker's main line (or the half line nearest the expected number)."""
-    t = common.copy()
-    have = d[f"{stat}_f_h"].notna() & d[f"{stat}_f_a"].notna()
+    have = d[f"{stat}_f_h"].notna() & d[f"{stat}_f_a"].notna() & d[f"mu_{stat}_total"].notna()
+    t, d = common[have].copy(), d[have]            # national teams have no corners, cards or shots
     for side, word in (("total", label), ("home", f"Home {label.lower()}"), ("away", f"Away {label.lower()}")):
         rows = []
         for mu, alpha, more in zip(d[f"mu_{stat}_{side}"], d[f"alpha_{stat}_{side}"], d.get("more_odds", pd.Series(None, index=d.index))):
@@ -257,7 +257,7 @@ def _count_tab(common, d, stat, label):
         if side != "total":
             x = x[[f"{word} expected", f"{word} line", f"{word} over %"]]
         t = pd.concat([t, x], axis=1)
-    return t[have].sort_values(f"{label} expected", ascending=False)
+    return t.sort_values(f"{label} expected", ascending=False)
 
 
 def market_tables(pred: pd.DataFrame, league_label) -> dict[str, pd.DataFrame]:
@@ -267,7 +267,7 @@ def market_tables(pred: pd.DataFrame, league_label) -> dict[str, pd.DataFrame]:
     common = pd.DataFrame({
         "Date": pd.to_datetime(d["date_local"]).dt.strftime("%a %d %b"), "Time": d["time_local"],
         "League": d["league"].map(league_label),
-        "League type": d["league"].map(lambda c: "Main" if c in MAIN_LEAGUES else "Other"),
+        "League type": d["league"].map(league_type),
         "Home": d["home"], "Away": d["away"]})
     priced = d["mk_h"].notna()
     fav_home = d["mk_h"] >= d["mk_a"]

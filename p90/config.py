@@ -69,9 +69,24 @@ COUNTRY_TO_EXTRA = {v[0]: k for k, v in EXTRA_LEAGUES.items()}
 API_TO_CODE = {v[3]: k for k, v in LEAGUES.items()}
 
 
+# national team competitions (p90/intl.py), not downloaded with the club leagues
+INTL_LEAGUES = {
+    "INT_WC": "World Cup", "INT_WCQ": "World Cup qualifiers", "INT_EURO": "Euro", "INT_EUROQ": "Euro qualifiers",
+    "INT_UNL": "UEFA Nations League", "INT_AFCON": "Africa Cup of Nations", "INT_AFCONQ": "AFCON qualifiers",
+    "INT_COPA": "Copa America", "INT_GOLD": "Gold Cup", "INT_CNL": "CONCACAF Nations League", "INT_ASIAN": "Asian Cup",
+    "INT_ASIANQ": "Asian Cup qualifiers", "INT_FRIENDLY": "Friendlies", "INT_OTHER": "Other tournaments",
+}
+
+
 def league_label(code: str) -> str:
+    if code in INTL_LEAGUES:
+        return f"International - {INTL_LEAGUES[code]}"
     c, n, *_ = LEAGUES[code]
     return f"{c} - {n}"
+
+
+def league_type(code: str) -> str:
+    return "Main" if code in MAIN_LEAGUES else "International" if code in INTL_LEAGUES else "Other"
 
 
 DEFAULTS = {
@@ -104,6 +119,8 @@ DEFAULTS = {
     "other_markets": ["btts", "goal_lines", "team_to_score", "handicap", "fav_or_over", "corners", "corner_1x2", "cards", "shots"],
     "injury_adjust": True,
     "injury_beta": 0.0095,
+    "internationals": True,
+    "intl_acca_min_prob": 0.70,
     "use_api_football": True,
     "api_odds_budget": 30,
     "utc_offset": 1,

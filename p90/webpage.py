@@ -11,11 +11,17 @@ INTRO = {"My picks": [
     "My own recommendation: 1 long acca around 5 odds and up to 2 safer accas around 2.3 odds, only when the model has them. No match is used twice. Same small stake on every slip, at most 1% of your bankroll.",
     "This exact rule in the 9 season test: 28.0% of slips won, +1.7% at average odds, -0.3% at Bet365, range -9.8% to +13.5%. So about break-even, not a sure profit. Expect losing runs: up to 18 long slips or 10 safer slips in a row.",
     "I would skip: weak picks, the main acca, other leagues in accas, and the other acca until your tracker shows it works.",
+], "Internationals": [
+    "National teams, with their own model: ratings for every country plus recent goals. Only in the international windows, and only with the API-Football key.",
+    "Test on 11 years (2016-2026), competitive matches: picks 65%+ were right 79% of the time, picks 75%+ 86%. When it says 70%, it happened about 70% of the time.",
+    "Friendlies are always WEAK: squads change a lot there. No value bets here: the free data has no old odds for national teams, so profit is not tested.",
+], "International acca": [
+    "National teams, favourites to win only, competitive matches only (no friendlies), every leg 70%+. Accuracy is tested (79% for 65%+ picks), profit is not: no old odds for national teams.",
 ]}
 GROUPS = [
     ("My picks", ["My picks"]),
-    ("Predictions", ["All", "Bangers", "Strong", "Weak", "Value bets"]),
-    ("Accas", ["Main acca", "Strong acca", "Banger acca", "Other acca"]),
+    ("Predictions", ["All", "Bangers", "Strong", "Weak", "Internationals", "Value bets"]),
+    ("Accas", ["Main acca", "Strong acca", "Banger acca", "Other acca", "International acca"]),
     ("Top by league", ["Top favourites", "Top goals", "Top BTTS", "Top corners"]),
     ("Goals", ["Over-Under 2.5", "BTTS", "Goal lines", "Team to score", "Underdog +1.5"]),
     ("Corners, cards, shots", ["Corners", "Cards", "Shots"]),
@@ -142,7 +148,7 @@ function fill(sel,label,vals,cur){sel.textContent="";var o=el("option","",label)
 function uniq(t,col){var i=t.columns.indexOf(col);if(i<0)return[];var s={},out=[];t.rows.forEach(function(r){var v=r[i];if(v&&!s[v]){s[v]=1;out.push(v)}});return out}
 function drawFilters(t){var slip=isSlip(t);
  fill($("fDay"),"All days",uniq(t,slip?"Day":"Date"),S.day);$("fDay").style.display=uniq(t,slip?"Day":"Date").length?"":"none";
- fill($("fType"),"Main + Other",uniq(t,"League type"),S.type);$("fType").style.display=slip||t.columns.indexOf("League type")<0?"none":"";
+ fill($("fType"),"All types",uniq(t,"League type"),S.type);$("fType").style.display=slip||t.columns.indexOf("League type")<0?"none":"";
  fill($("fLeague"),"All leagues",uniq(t,"League").sort(),S.league);$("fLeague").style.display=slip||t.columns.indexOf("League")<0?"none":"";
  $("fText").style.display=slip?"none":"";$("fText").value=S.text;
  S.day=$("fDay").value;S.type=$("fType").value;S.league=$("fLeague").value}

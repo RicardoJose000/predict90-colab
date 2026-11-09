@@ -69,7 +69,7 @@ def entries_from(preds: pd.DataFrame, value: pd.DataFrame, sets, s: dict) -> lis
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     out = []
     names = {"H": "Home", "D": "Draw", "A": "Away"}
-    strong = preds[preds[["p_h", "p_d", "p_a"]].max(axis=1) >= s["strong_threshold"]]
+    strong = preds[(preds[["p_h", "p_d", "p_a"]].max(axis=1) >= s["strong_threshold"]) & (preds.get("confidence", "") != "WEAK")]
     for i, r in strong.iterrows():
         k = int(np.argmax(r[["p_h", "p_d", "p_a"]].to_numpy(float)))
         pick = "HDA"[k]

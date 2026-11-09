@@ -15,9 +15,10 @@ import joblib
 import numpy as np
 import pandas as pd
 
-from . import betting, data, evaluate, live, props, report, tracker, webpage
+from . import betting, data, evaluate, intl, live, props, report, tracker, webpage
 from .backtest import fit_all, past_warmup, predict_all, walk_forward
-from .config import DATA, LEAGUES, MAIN_LEAGUES, MODELS, OUTPUT, ROOT, current_season_start, league_label, load_settings
+from .config import DATA, INTL_LEAGUES, LEAGUES, MAIN_LEAGUES, MODELS, OUTPUT, ROOT, current_season_start, league_label, load_settings
+from .config import league_type as _league_type
 from .features import build_features
 
 MODEL_FILE = MODELS / "models.joblib"
@@ -154,7 +155,50 @@ def tier_label(p, s):
 
 
 def league_type(league) -> pd.Series:
-    return pd.Series(league).map(lambda c: "Main" if c in MAIN_LEAGUES else "Other")
+    return pd.Series(league).map(_league_type)
+
+
+INTL_ODDS = ("b_h", "b_d", "b_a", "b_over", "b_under", "b_btts_yes", "b_btts_no", "b_1x", "b_x2")
+
+
+def internationals(s: dict, verbose=True) -> tuple[pd.DataFrame, pd.DataFrame | None]:
+    """National team matches today/tomorrow with their own model (p90/intl.py), in the same columns as the clubs."""
+    if not s.get("internationals", True):
+        return pd.DataFrame(), None
+    api = live.ApiFootball(verbose=verbose)
+    if not (s.get("use_api_football") and api.ok):
+        log("  internationals: need the API-Football key (football-data.co.uk has no national teams)", verbose)
+        return pd.DataFrame(), None
+    days = [date.today(), date.today() + timedelta(days=1)]
+    try:
+        p, res = intl.predict_upcoming(api, days, s, verbose)
+    except Exception as e:                       # never let them stop the club predictions
+        log(f"  ! internationals skipped this time: {type(e).__name__}: {e}", verbose)
+        return pd.DataFrame(), None
+    log(f"  internationals: {len(p)} national team matches today/tomorrow", verbose)
+    if p.empty:
+        return p, res
+    odds = live.api_odds(api, days, [int(f) for f in p["fixture_id"]], per_match_budget=int(s.get("intl_odds_budget", 20)))
+    for c in INTL_ODDS:
+        p[c] = pd.to_numeric(p["fixture_id"].map(lambda f: odds.get(int(f), {}).get(c)), errors="coerce")
+    p["more_odds"] = p["fixture_id"].map(lambda f: odds.get(int(f), {}).get("more"))
+    for a, b in (("o_h", "b_h"), ("o_d", "b_d"), ("o_a", "b_a"), ("o_over", "b_over"), ("o_under", "b_under")):
+        p[a] = p[b]
+    inv = 1 / p[["b_h", "b_d", "b_a"]].to_numpy(float)
+    p["mk_h"], p["mk_d"], p["mk_a"] = (inv / inv.sum(1, keepdims=True)).T
+    inv2 = 1 / p[["b_over", "b_under"]].to_numpy(float)
+    p["mk_over"] = inv2[:, 0] / inv2.sum(1)
+    p["date"] = pd.to_datetime(p["date_local"])
+    p["model"] = "national teams"
+    p["source"] = "API-Football"
+    return p, res
+
+
+def intl_results_for_tracker(res: pd.DataFrame | None) -> pd.DataFrame:
+    if res is None or res.empty:
+        return pd.DataFrame()
+    r = res[res["league"].notna() & (res["date"] >= res["date"].max() - pd.Timedelta(days=60))]
+    return r[["league", "date", "home", "away", "hg", "ag"]]
 
 
 def adjust_for_injuries(pred: pd.DataFrame, beta: float) -> pd.DataFrame:
@@ -189,25 +233,42 @@ def daily(force_retrain=False, verbose=True, write_excel=True) -> dict:
     results = data.load_results(s["leagues"], s["first_season"], s["refresh_hours"], verbose=verbose)
     log("2/5 Upcoming matches", verbose)
     fx, inj, info = upcoming_matches(results, s, verbose)
+    ip, ires = internationals(s, verbose)
     log("3/5 Building features", verbose)
     feat = props.add_features(build_features(pd.concat([results, fx], ignore_index=True)))
     log("4/5 Models", verbose)
     models = get_models(feat, s, force=force_retrain, verbose=verbose)
     up = feat[feat["y"].isna()].copy()
-    if up.empty:
+    settle_with = pd.concat([results, intl_results_for_tracker(ires)], ignore_index=True)
+    if up.empty and ip.empty:
         log("No upcoming matches found for the next days.", verbose)
-        _update_tracker([], results, s, verbose)
+        _update_tracker([], settle_with, s, verbose)
         return {"predictions": pd.DataFrame(), "results": results, "settings": s, "feat": feat,
-                "slips": {}, "strong_slips": {}, "banger_slips": {}, "other_slips": {}, "my_picks": {}, "value": pd.DataFrame(),
-                "injuries": inj, "info": info}
+                "slips": {}, "strong_slips": {}, "banger_slips": {}, "other_slips": {}, "my_picks": {}, "intl_slips": {},
+                "value": pd.DataFrame(), "injuries": inj, "info": info}
 
     log("5/5 Predictions", verbose)
-    extra = [c for c in ("date_local", "time_local", "fixture_id", "api_home", "api_away", "source",
-                         "b_btts_yes", "b_btts_no", "b_1x", "b_x2", "more_odds") if c in up.columns]
-    extra += [c for c in up.columns if c.endswith(("_f_h", "_f_a"))]
-    pred = predict_all(models, up)
-    pred[extra] = up[extra]
-    pred = pd.concat([pred, props.predict(models["props"], up)], axis=1)
+    pred = pd.DataFrame()
+    if not up.empty:
+        extra = [c for c in ("date_local", "time_local", "fixture_id", "api_home", "api_away", "source",
+                             "b_btts_yes", "b_btts_no", "b_1x", "b_x2", "more_odds") if c in up.columns]
+        extra += [c for c in up.columns if c.endswith(("_f_h", "_f_a"))]
+        pred = predict_all(models, up)
+        pred[extra] = up[extra]
+        pred = pd.concat([pred, props.predict(models["props"], up)], axis=1)
+    if not ip.empty:
+        keep = [c for c in ip.columns if c in pred.columns or c.startswith(("p_", "b_", "o_", "mk_")) or c in
+                ("league", "home", "away", "date", "date_local", "time_local", "fixture_id", "api_home", "api_away",
+                 "source", "model", "more_odds", "xg_h", "xg_a", "competition")]
+        pred = pd.concat([pred, ip[keep]], ignore_index=True) if len(pred) else ip[keep].reset_index(drop=True)
+    # a day with only national teams (or only clubs) still needs every column the sheets use
+    club_only = [f"p_{b}" for b in models["props"]["goals"]] + \
+        [f"{k}_{n}" for n in models["props"]["counts"] for k in ("mu", "alpha")] + \
+        [c for c in feat.columns if c.endswith(("_f_h", "_f_a"))]
+    for c in club_only + ["o_h", "o_d", "o_a", "b_h", "b_d", "b_a", "m_h", "m_d", "m_a", "mk_h", "mk_d", "mk_a", "mk_over",
+                          "o_over", "o_under", "b_btts_yes", "b_btts_no", "b_1x", "b_x2", "more_odds", "p_over", "p_btts"]:
+        if c not in pred:
+            pred[c] = np.nan
     pred["odds_h"] = pred["o_h"].fillna(pred["b_h"])
     pred["odds_d"] = pred["o_d"].fillna(pred["b_d"])
     pred["odds_a"] = pred["o_a"].fillna(pred["b_a"])
@@ -237,9 +298,17 @@ def daily(force_retrain=False, verbose=True, write_excel=True) -> dict:
     pred["pick"] = np.array(list("HDA"))[P.argmax(1)]
     pred["top"] = P.max(1)
     pred["confidence"] = tier_label(pred["top"], s)
+    is_intl = pred["league"].isin(INTL_LEAGUES)
+    pred.loc[pred["league"] == "INT_FRIENDLY", "confidence"] = "WEAK"     # squads change a lot in friendlies
 
-    value = betting.value_bets(pred[pred["odds_h"].notna()], s, ("odds_h", "odds_d", "odds_a"))
-    slips, strong_slips, banger_slips, other_slips, my_picks = {}, {}, {}, {}, {}
+    # value bets need a model that knows the market: the national team model has no old odds to learn from
+    value = betting.value_bets(pred[pred["odds_h"].notna() & ~is_intl], s, ("odds_h", "odds_d", "odds_a"))
+    slips, strong_slips, banger_slips, other_slips, my_picks, intl_slips = {}, {}, {}, {}, {}, {}
+    competitive = pred[is_intl & ~pred["league"].isin(["INT_FRIENDLY", "INT_OTHER"]) & pred["odds_h"].notna()]
+    for day, g in competitive.groupby("date_local"):
+        built = betting.build_favourites(g, s, float(s.get("intl_acca_min_prob", 0.70)))
+        if built:
+            intl_slips[pd.Timestamp(day).strftime("%Y-%m-%d")] = built
     pool = betting.acca_pool(pred, s)
     for day, g in pool.groupby("date_local"):
         key = pd.Timestamp(day).strftime("%Y-%m-%d")
@@ -253,20 +322,23 @@ def daily(force_retrain=False, verbose=True, write_excel=True) -> dict:
                 target[key] = built
 
     out = {"predictions": pred, "value": value, "slips": slips, "strong_slips": strong_slips,
-           "banger_slips": banger_slips, "other_slips": other_slips, "my_picks": my_picks, "injuries": inj, "results": results,
+           "banger_slips": banger_slips, "other_slips": other_slips, "my_picks": my_picks, "intl_slips": intl_slips,
+           "injuries": inj, "results": results,
            "settings": s, "info": info, "feat": feat}
     if write_excel:
         path = export_excel(out)
         out["excel"] = path
         sets = (("Main acca", slips), ("Strong acca", strong_slips), ("Banger acca", banger_slips), ("Other acca", other_slips),
-                ("Picks acca", my_picks))
-        out["tracker"] = _update_tracker(tracker.entries_from(pred, value, sets, s), results, s, verbose)
+                ("Picks acca", my_picks), ("International acca", intl_slips))
+        out["tracker"] = _update_tracker(tracker.entries_from(pred, value, sets, s), settle_with, s, verbose)
         log(f"\nSaved: {path.name} and {path.stem}.html in the output folder", verbose)
     log(f"Done in {time.time() - t0:.0f}s: {len(pred)} matches, "
         f"{int((pred['confidence'] == 'BANGER').sum())} bangers, {int((pred['confidence'] == 'STRONG').sum())} strong, "
         f"{len(value)} value bets, accas: {sum(len(v) for v in slips.values())} main, {sum(len(v) for v in strong_slips.values())} strong, "
         f"{sum(len(v) for v in banger_slips.values())} banger, {sum(len(v) for v in other_slips.values())} other, "
-        f"{sum(len(v) for v in my_picks.values())} my picks", verbose)
+        f"{sum(len(v) for v in my_picks.values())} my picks"
+        + (f" | {int(is_intl.sum())} national team matches, {sum(len(v) for v in intl_slips.values())} international accas"
+           if is_intl.any() else ""), verbose)
     return out
 
 
@@ -320,7 +392,7 @@ def tables(out: dict) -> dict[str, pd.DataFrame]:
                     r = pred.loc[i]
                     rows.append({"Row": "", "Day": "", "Slip": n,
                                  "Match": f"{r['home']} v {r['away']}  ({r['time_local']})",
-                                 "League": league_label(r["league"]), "League type": "Main" if r["league"] in MAIN_LEAGUES else "Other",
+                                 "League": league_label(r["league"]), "League type": _league_type(r["league"]),
                                  "Pick": betting.pick_name(pick), "Pick %": prob,
                                  "Odds": odds, "Price": "estimate" if i in sl.get("est", ()) else ""})
         t = pd.DataFrame(rows, columns=["Row", "Set", "Day", "Slip", "Match", "League", "League type", "Pick", "Pick %", "Odds", "Price"])
@@ -332,9 +404,12 @@ def tables(out: dict) -> dict[str, pd.DataFrame]:
                            "Bookmaker over %": pred["mk_over"].to_numpy()})
     btts = markets["BTTS"].assign(**{"BTTS yes %": lambda x: x["Yes %"]})
     n = int(s.get("top_n_per_league", 3))
-    sheets = {"My picks": slip_sheet(out["my_picks"]), "All": base, "Bangers": group("BANGER"), "Strong": group("STRONG"), "Weak": group("WEAK"), "Value bets": vb,
+    nat = base[base["League type"] == "International"].sort_values("Pick %", ascending=False)
+    sheets = {"My picks": slip_sheet(out["my_picks"]), "All": base, "Bangers": group("BANGER"), "Strong": group("STRONG"),
+              "Weak": group("WEAK"), "Internationals": nat, "Value bets": vb,
               "Main acca": slip_sheet(out["slips"]), "Strong acca": slip_sheet(out["strong_slips"]),
               "Banger acca": slip_sheet(out["banger_slips"]), "Other acca": slip_sheet(out["other_slips"]),
+              "International acca": slip_sheet(out.get("intl_slips", {})),
               "Top favourites": props.top_per_league(picks, "Pick %", n, ["Pick", "Pick %", "Strength", "Pick odds"]),
               "Top goals": props.top_per_league(goals, "Over 2.5 %", n, ["Over 2.5 %", "Bookmaker over %", "Over odds", "BTTS %"]),
               "Top BTTS": props.top_per_league(btts, "BTTS yes %", n, ["BTTS yes %", "Yes odds", "No odds"]),
@@ -353,7 +428,7 @@ NOTES = [
     "PREDICTIONS (sheets All, Bangers, Strong, Weak)",
     "Home % / Draw % / Away %: the model's chance for each result. The three always add up to 100%.",
     "Pick: the most likely result. Strength: BANGER = pick is 75%+, STRONG = 65-75%, GOOD = 50-65%, WEAK = below 50%. In the test they were right 81%, 70%, 57% and 42% of the time.",
-    "League type: Main = the 22 main leagues, Other = the 16 other leagues. Every sheet has filter arrows at the top: filter by Strength, League type or anything else.",
+    "League type: Main = the 22 main leagues, Other = the 16 other leagues, International = national teams. Every sheet has filter arrows at the top: filter by Strength, League type or anything else.",
     "Odds 1 / X / 2: average bookmaker odds (football-data.co.uk) or Bet365 (API-Football).",
     "Best odds (pick): the highest price on the market for the pick. Compare it with what your bookmaker pays.",
     "The price you take matters a lot for accas: see part 7 of the notebook.",
@@ -381,6 +456,12 @@ NOTES = [
     "On goals bets (over/under, BTTS) the slip's chance is half our model, half the market. So it can differ a little from the Over 2.5 % and BTTS % columns.",
     "Busy days give all 5. Quiet days give fewer or none, because there are not enough safe matches: slips are never forced.",
     "Each slip stops when total odds reach about 4.5-7. 'Pick %' on the SLIP row = chance that every leg wins.",
+    "",
+    "NATIONAL TEAMS (sheets Internationals and International acca)",
+    "World Cup and Euro qualifiers, Nations League, AFCON, Copa America, Gold Cup, Asian Cup and friendlies, today and tomorrow. Needs the API-Football key, and they only come in the international windows.",
+    "Their own model: ratings for every country plus recent goals (part 5b of the notebook). Test on 11 years, competitive matches: picks 65%+ right 79% of the time, 75%+ 86%.",
+    "Friendlies are always WEAK: squads change a lot there. League type = International, so you can filter them.",
+    "INTERNATIONAL ACCA: favourites to win only, competitive matches only, every leg 70%+ (intl_acca_min_prob in settings.json). Accuracy tested, profit not: no old odds for national teams. No value bets on national teams for the same reason.",
     "",
     "TOP BY LEAGUE (sheets Top favourites, Top goals, Top BTTS, Top corners)",
     "The top matches of each league, 3 by default: top_n_per_league in settings.json. A top list is still only chances: check the Strength and the odds.",
