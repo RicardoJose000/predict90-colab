@@ -7,6 +7,7 @@ Sheet "Summary" shows the live record: all suggestions, and only what you played
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime
 
 import numpy as np
@@ -19,6 +20,7 @@ from .report import write_table
 FILE = OUTPUT / "bet_tracker.xlsx"
 COLS = ["ID", "Added", "Match day", "Type", "Bet", "Odds", "Model chance", "Stake", "Played",
         "Status", "Return", "Profit", "Legs"]
+OLD_SETS = {"Main acca", "Strong acca", "Banger acca", "Other acca", "Picks acca", "International acca"}
 
 
 def load() -> pd.DataFrame:
@@ -49,13 +51,13 @@ def add(track: pd.DataFrame, entries: list[dict], today: str | None = None) -> p
     day, and only for that day: a second run must not add more slips and inflate the record."""
     have = set(track["ID"].astype(str))
     is_slip = track["Type"].astype(str).str.contains(" slip | acca ")
-    locked = set(zip(track.loc[is_slip, "Match day"].astype(str),
-                     track.loc[is_slip, "Type"].astype(str).str.split().str[0]))
+    set_of = lambda t: re.sub(r" \d+$", "", str(t))          # "Corners over acca 2" -> "Corners over acca"
+    locked = set(zip(track.loc[is_slip, "Match day"].astype(str), track.loc[is_slip, "Type"].map(set_of)))
     new = []
     for e in entries:
         if e["ID"] in have:
             continue
-        if " acca " in e["Type"] and ((e["Match day"], e["Type"].split()[0]) in locked or (today and e["Match day"] != today)):
+        if " acca " in e["Type"] and ((e["Match day"], set_of(e["Type"])) in locked or (today and e["Match day"] != today)):
             continue
         new.append(e)
     if not new:
@@ -97,7 +99,8 @@ def entries_from(preds: pd.DataFrame, value: pd.DataFrame, sets, s: dict) -> lis
                 marks = [" (price is an estimate)" if i in sl.get("est", ()) else "" for i, *_ in sl["legs"]]
                 text = " | ".join(f"{l['home']} v {l['away']}: {pick_name(l['pick'])}{m}" for l, m in zip(legs, marks))
                 key = "+".join(sorted(f"{l['league']}:{l['home']}:{l['pick']}" for l in legs))
-                out.append({"ID": f"{label[0]}|{day}|{key}", "Added": now, "Match day": day,
+                tag = label[0] if label in OLD_SETS else label    # the old sets keep their IDs: no double rows
+                out.append({"ID": f"{tag}|{day}|{key}", "Added": now, "Match day": day,
                             "Type": f"{label} {n}", "Bet": text, "Odds": round(sl["odds"], 2),
                             "Model chance": round(sl["win_prob"], 4), "Stake": 1.0, "Played": "",
                             "Status": "pending", "Legs": json.dumps(legs)})

@@ -62,7 +62,7 @@ def write_predictions(path: Path, sheets: dict[str, pd.DataFrame], notes: list[s
             _style(ws, df)
             if name == "All":
                 _fill_rows(ws, df, "Strength", {"BANGER": STRONG, "STRONG": STRONG, "GOOD": CONF})
-            if name.endswith("acca") or name == "My picks":
+            if "acca" in name or name == "My picks":
                 _fill_rows(ws, df, "Row", {"SLIP": SLIP})
             if name == "Value bets":
                 for row in ws.iter_rows(min_row=2):

@@ -15,7 +15,7 @@ import joblib
 import numpy as np
 import pandas as pd
 
-from . import betting, data, evaluate, intl, live, props, report, tracker, webpage
+from . import bangers, betting, data, evaluate, intl, live, props, report, tracker, webpage
 from .backtest import fit_all, past_warmup, predict_all, walk_forward
 from .config import DATA, INTL_LEAGUES, LEAGUES, MAIN_LEAGUES, MODELS, OUTPUT, ROOT, current_season_start, league_label, load_settings
 from .config import league_type as _league_type
@@ -242,7 +242,7 @@ def daily(force_retrain=False, verbose=True, write_excel=True) -> dict:
         log("No upcoming matches found for the next days.", verbose)
         _update_tracker([], settle_with, s, verbose)
         return {"predictions": pd.DataFrame(), "results": results, "settings": s, "feat": feat,
-                "slips": {}, "strong_slips": {}, "banger_slips": {}, "other_slips": {}, "my_picks": {}, "intl_slips": {},
+                "slips": {}, "strong_slips": {}, "banger_slips": {}, "other_slips": {}, "my_picks": {}, "intl_slips": {}, "market_accas": {},
                 "value": pd.DataFrame(), "injuries": inj, "info": info}
 
     log("5/5 Predictions", verbose)
@@ -322,23 +322,26 @@ def daily(force_retrain=False, verbose=True, write_excel=True) -> dict:
                               (my_picks, betting.build_my_picks(fav, s) if len(fav) else [])):
             if built:
                 target[key] = built
+    market_accas = bangers.accas(pred, s)             # {market tab: {day: [slip]}}
 
     out = {"predictions": pred, "value": value, "slips": slips, "strong_slips": strong_slips,
            "banger_slips": banger_slips, "other_slips": other_slips, "my_picks": my_picks, "intl_slips": intl_slips,
-           "injuries": inj, "results": results,
+           "market_accas": market_accas, "injuries": inj, "results": results,
            "settings": s, "info": info, "feat": feat}
     if write_excel:
         path = export_excel(out)
         out["excel"] = path
         sets = (("Main acca", slips), ("Strong acca", strong_slips), ("Banger acca", banger_slips), ("Other acca", other_slips),
-                ("Picks acca", my_picks), ("International acca", intl_slips))
+                ("Picks acca", my_picks), ("International acca", intl_slips),
+                *((f"{tab} acca", by_day) for tab, by_day in market_accas.items()))
         out["tracker"] = _update_tracker(tracker.entries_from(pred, value, sets, s), settle_with, s, verbose)
         log(f"\nSaved: {path.name} and {path.stem}.html in the output folder", verbose)
     log(f"Done in {time.time() - t0:.0f}s: {len(pred)} matches, "
         f"{int((pred['confidence'] == 'BANGER').sum())} bangers, {int((pred['confidence'] == 'STRONG').sum())} strong, "
         f"{len(value)} value bets, accas: {sum(len(v) for v in slips.values())} main, {sum(len(v) for v in strong_slips.values())} strong, "
         f"{sum(len(v) for v in banger_slips.values())} banger, {sum(len(v) for v in other_slips.values())} other, "
-        f"{sum(len(v) for v in my_picks.values())} my picks"
+        f"{sum(len(v) for v in my_picks.values())} my picks, "
+        f"{sum(len(x) for v in market_accas.values() for x in v.values())} banger accas by market"
         + (f" | {int(is_intl.sum())} national team matches, {sum(len(v) for v in intl_slips.values())} international accas"
            if is_intl.any() else ""), verbose)
     return out
@@ -407,7 +410,13 @@ def tables(out: dict) -> dict[str, pd.DataFrame]:
     btts = markets["BTTS"].assign(**{"BTTS yes %": lambda x: x["Yes %"]})
     n = int(s.get("top_n_per_league", 3))
     nat = base[base["League type"] == "International"].sort_values("Pick %", ascending=False)
-    sheets = {"My picks": slip_sheet(out["my_picks"]), "All": base, "Bangers": group("BANGER"), "Strong": group("STRONG"),
+    by_market = out.get("market_accas", {})
+    days = sorted({d for v in by_market.values() for d in v})
+    market_slips = {d: [sl for v in by_market.values() for sl in v.get(d, [])] for d in days}
+    sheets = {"My picks": slip_sheet(out["my_picks"]),
+              **bangers.tables(pred, s, league_label, _league_type, betting.pick_name),
+              bangers.ACCA_TAB: slip_sheet(market_slips),
+              "All": base, "Bangers": group("BANGER"), "Strong": group("STRONG"),
               "Weak": group("WEAK"), "Internationals": nat, "Value bets": vb,
               "Main acca": slip_sheet(out["slips"]), "Strong acca": slip_sheet(out["strong_slips"]),
               "Banger acca": slip_sheet(out["banger_slips"]), "Other acca": slip_sheet(out["other_slips"]),
@@ -446,6 +455,17 @@ NOTES = [
     "Same small stake on every slip, at most 1% of your bankroll. I would skip weak picks, the main acca, other leagues in accas, and the other acca until your tracker shows it works.",
     "This exact rule in the 9 season test: 949 slips on about 1 day in 3, 28.0% of slips won, +1.7% at average odds, -0.3% at Bet365, range -9.8% to +13.5%. So about break-even: not a sure profit. Expect losing runs: up to 18 long slips or 10 safer slips in a row.",
     "National teams: competitive matches (no friendlies) can be in My picks, the strong and the banger acca too. Their accuracy is tested (79% for 65%+ picks), their profit is not: no old odds for national teams.",
+    "",
+    "BANGERS (the safest pick of each kind)",
+    "1X2, Over 2.5, Over 1.5, Corners over, Cards over, Shots over: only picks that are 75%+ (bangers_min_prob in settings.json).",
+    "Over 2.5 uses half our chance, half the bookmaker's. A match in Over 2.5 is not shown again in Over 1.5.",
+    "Corners, cards and shots: every match once, at its highest line that is still 75%+ (never below 6.5 corners, 2.5 cards, 15.5 shots).",
+    "Test on 9 seasons, each predicted only with the seasons before it: right 1X2 81%, Over 2.5 81%, Over 1.5 80%, corners 79%, cards 82%, shots 78%. Lowest season 73-79%. National teams: 1X2 86%, Over 1.5 81% (competitive matches only, no Over 2.5).",
+    "No BTTS bangers: in 100,000 test matches the model never reached 75% for BTTS (highest 71%).",
+    "BANGER ACCAS: one acca per market and day, from that market's bangers only, total odds about 2 to 3 (bangers_acca_min_odds / max_odds). One market per slip, so the same match is never twice in a slip.",
+    "In the test all legs won in 42% (1X2), 33% (Over 1.5), 30% (corners), 37% (cards), 36% (shots) of slips. At real old odds the 1X2 acca lost about 8% per slip (the bookmaker margin); the others have no old odds, so profit is not tested. Part 5c of the notebook has the tables.",
+    "Odds = Bet365 when API-Football has that line, otherwise an estimate (our chance + a normal margin): check the price at your bookmaker.",
+    "The page shows My picks and Bangers first. Press More for everything else (simple_page: false shows all at once). The Excel file always has every sheet.",
     "",
     "THE 4 ACCA SHEETS",
     "All from the 22 main leagues by default (acca_leagues in settings.json), total odds about 4.5-7. Within one sheet every match is used once. A match can appear on more than one sheet. Part 7 of the notebook has the tests.",
@@ -495,7 +515,7 @@ def export_excel(out: dict):
         path = OUTPUT / f"predictions_{datetime.now():%Y-%m-%d_%H%M}.xlsx"
         report.write_predictions(path, sheets, NOTES)
     out["page"] = path.with_suffix(".html")
-    webpage.write(out["page"], sheets, NOTES)
+    webpage.write(out["page"], sheets, NOTES, simple=bool(out["settings"].get("simple_page", True)))
     return path
 
 

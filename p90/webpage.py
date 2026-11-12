@@ -18,9 +18,27 @@ INTRO = {"My picks": [
     "Friendlies are always WEAK: squads change a lot there. No value bets here: the free data has no old odds for national teams, so profit is not tested.",
 ], "International acca": [
     "National teams, favourites to win only, competitive matches only (no friendlies), every leg 70%+. Accuracy is tested (79% for 65%+ picks), profit is not: no old odds for national teams.",
+], "1X2": [
+    "The likeliest result, only when it is 75%+. Test on 9 seasons (each season predicted only with the seasons before it): right 81% of the time, lowest season 78%. National teams (competitive matches only): 86%.",
+], "Over 2.5 goals": [
+    "Half our chance, half the bookmaker's, only 75%+. Test: right 81%, lowest season 73%. Rare: about 1 match in 200. No national teams here: their goal chances were too high in the test.",
+], "Over 1.5 goals": [
+    "75%+, only matches that are not already in Over 2.5. Test: right 80%, lowest season 79%. National teams: 81%.",
+], "Corners over": [
+    "Every match once, at its highest line that is still 75%+ (never below 6.5). Test: right 79%, lowest season 76%.",
+    "Odds = Bet365 when that line has a price, otherwise an estimate: check the price at your bookmaker.",
+], "Cards over": [
+    "Every match once, at its highest line that is still 75%+ (never below 2.5). Test: right 82%, lowest season 79%. Cards = yellow + red: bookmakers count them in different ways, check the rules.",
+], "Shots over": [
+    "Every match once, at its highest line that is still 75%+ (never below 15.5). Test: right 78%, lowest season 76%.",
+], "Banger accas": [
+    "One acca per market and day, only from that market's bangers, total odds about 2 to 3. One market per slip, so the same match is never twice in a slip.",
+    "Test, share of slips where all legs won: 1X2 42%, Over 1.5 33%, corners 30%, cards 37%, shots 36% (the model said 45, 34, 34, 34, 33%). At real old odds the 1X2 acca lost about 8% per slip: that is the bookmaker margin. The others have no old odds, so their profit is not tested. Keep stakes small.",
+    "No BTTS bangers: in 100,000 test matches the model never reached 75% for BTTS (highest 71%).",
 ]}
 GROUPS = [
     ("My picks", ["My picks"]),
+    ("Bangers", ["1X2", "Over 2.5 goals", "Over 1.5 goals", "Corners over", "Cards over", "Shots over", "Banger accas"]),
     ("Predictions", ["All", "Bangers", "Strong", "Weak", "Internationals", "Value bets"]),
     ("Accas", ["Main acca", "Strong acca", "Banger acca", "Other acca", "International acca"]),
     ("Top by league", ["Top favourites", "Top goals", "Top BTTS", "Top corners"]),
@@ -54,10 +72,14 @@ def _sheet(name: str, df: pd.DataFrame) -> dict:
             "rows": [[_clean(v) for v in row] for row in d.astype(object).where(d.notna(), None).to_numpy().tolist()]}
 
 
-def write(path, sheets: dict[str, pd.DataFrame], notes: list[str]) -> None:
+MAIN_GROUPS = ("My picks", "Bangers")      # the simple page: the rest is behind the "More" button
+
+
+def write(path, sheets: dict[str, pd.DataFrame], notes: list[str], simple: bool = True) -> None:
     data = {"updated": f"{datetime.now():%a %d %b %Y, %H:%M}", "notes": notes, "intro": INTRO,
             "groups": [{"name": g, "tabs": [_sheet(n, sheets[n]) for n in names if n in sheets]} for g, names in GROUPS]}
     data["groups"] = [g for g in data["groups"] if g["tabs"]]
+    data["main"] = sum(g["name"] in MAIN_GROUPS for g in data["groups"]) if simple else len(data["groups"])
     blob = json.dumps(data, ensure_ascii=False, allow_nan=False).replace("</", "<\\/")
     path.write_text(PAGE.replace("__DATA__", blob), encoding="utf-8")
 
@@ -128,7 +150,7 @@ footer{max-width:1320px;margin:6px auto 0;padding:0 16px;color:var(--ink3);font-
 <script id="d" type="application/json">__DATA__</script>
 <script>
 var D=JSON.parse(document.getElementById("d").textContent),$=function(i){return document.getElementById(i)};
-var S={g:0,t:0,sort:null,up:false,day:"",type:"",league:"",text:""};
+var S={g:0,t:0,sort:null,up:false,day:"",type:"",league:"",text:"",more:false};
 function el(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
 function fmt(col,v){if(v==null||v==="")return"";if(typeof v!=="number")return String(v);
  if(col.indexOf("%")>=0)return(v*100).toFixed(1)+"%";
@@ -140,7 +162,8 @@ function isNum(tab,i){return tab.rows.some(function(r){return typeof r[i]==="num
 function tab(){return D.groups[S.g].tabs[S.t]}
 function btn(bar,text,on,fn){var b=el("button","",text);b.type="button";b.setAttribute("aria-pressed",on?"true":"false");b.onclick=fn;bar.appendChild(b)}
 function drawNav(){var g=$("groups"),t=$("tabs");g.textContent="";t.textContent="";
- D.groups.forEach(function(x,i){btn(g,x.name,i===S.g,function(){S.g=i;S.t=0;reset();draw()})});
+ D.groups.forEach(function(x,i){if(i<D.main||S.more)btn(g,x.name,i===S.g,function(){S.g=i;S.t=0;reset();draw()})});
+ if(D.main<D.groups.length)btn(g,S.more?"Less":"More",false,function(){S.more=!S.more;if(!S.more&&S.g>=D.main){S.g=0;S.t=0;reset()}draw()});
  btn(g,"How to read",S.g===-1,function(){S.g=-1;draw()});
  if(S.g>=0)D.groups[S.g].tabs.forEach(function(x,i){btn(t,x.name,i===S.t,function(){S.t=i;reset();draw()})})}
 function reset(){S.sort=null;S.up=false}
