@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import poisson
 
-from .config import CACHE, OUTPUT, ROOT, SEED
+from .config import API_CACHE, CACHE, OUTPUT, ROOT, SEED
 
 URL = "https://raw.githubusercontent.com/martj42/international_results/master/results.csv"
 CACHE_FILE = CACHE / "intl_results.csv"
@@ -378,12 +378,50 @@ def upcoming(api, days, utc_offset: int, ratings: Ratings, names: set, verbose=T
     return pd.DataFrame(rows).drop_duplicates(subset=["league", "home", "away"]) if rows else pd.DataFrame()
 
 
+def api_results(api, names: set, after: pd.Timestamp, today) -> pd.DataFrame:
+    """Finished national team matches from API-Football that the results data doesn't have yet
+    (it is updated a few weeks late). Yesterday costs 1 request, older days come from the saved fixture lists."""
+    index = {_key(n): n for n in names}
+    yesterday = (today - timedelta(days=1)).isoformat()
+    days = {f.stem.split("-", 1)[1] for f in API_CACHE.glob("fixtures_date-*.json")} | {yesterday}
+    rows = []
+    for d in sorted(days):
+        if d > today.isoformat() or pd.Timestamp(d) <= after:
+            continue
+        data = api.get("fixtures", {"date": d}, max_age_hours=2 if d >= yesterday else 1e9)
+        for fx in (data or {}).get("response", []):
+            lg = fx["league"]
+            if lg.get("country") != "World" or fx["fixture"]["status"]["short"] not in ("FT", "AET", "PEN"):
+                continue
+            code = api_comp_code(lg["name"])
+            h, a = (index.get(_key(COUNTRY_ALIAS.get(n, n))) for n in (fx["teams"]["home"]["name"], fx["teams"]["away"]["name"]))
+            hg, ag = fx["goals"]["home"], fx["goals"]["away"]
+            if code is None or not h or not a or h == a or hg is None or ag is None:
+                continue
+            rows.append({"date": pd.Timestamp(fx["fixture"]["date"][:10]), "home": h, "away": a, "hg": int(hg), "ag": int(ag),
+                         "tournament": lg["name"], "neutral": int(code in FINALS), "league": code})
+    return pd.DataFrame(rows)
+
+
 def predict_upcoming(api, days, s: dict, verbose=True) -> tuple[pd.DataFrame, pd.DataFrame]:
     """(predictions for the national team matches, all international results for the tracker)."""
     res = load_results(float(s.get("refresh_hours", 6)), verbose=verbose)
-    feat, ratings = build_features(res)
     names = set(res.loc[res["date"] >= res["date"].max() - pd.Timedelta(days=4 * 365), "home"]) | \
         set(res.loc[res["date"] >= res["date"].max() - pd.Timedelta(days=4 * 365), "away"])
+    try:
+        new = api_results(api, names, res["date"].max(), days[0])
+    except Exception:                    # the newest results are a bonus, never a reason to stop
+        new = pd.DataFrame()
+    if len(new):                         # skip a match the data already has (its date can be 1 day off)
+        recent = res[res["date"] >= res["date"].max() - pd.Timedelta(days=3)]
+        have = {(r.home, r.away, d) for r in recent.itertuples() for d in (r.date - pd.Timedelta(days=1), r.date, r.date + pd.Timedelta(days=1))}
+        new = new[[(r.home, r.away, r.date) not in have for r in new.itertuples()]].drop_duplicates(subset=["date", "home", "away"])
+    if len(new):
+        res = pd.concat([res, new], ignore_index=True)
+        res = res.sort_values("date", kind="stable").reset_index(drop=True)
+        if verbose:
+            print(f"  internationals: {len(new)} newest results added from API-Football")
+    feat, ratings = build_features(res)
     fx = upcoming(api, days, int(s.get("utc_offset", 1)), ratings, names, verbose)
     if fx.empty:
         return fx, res

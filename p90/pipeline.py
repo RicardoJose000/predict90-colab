@@ -103,10 +103,8 @@ def upcoming_matches(results: pd.DataFrame, s: dict, verbose=True) -> tuple[pd.D
               "m_over", "m_under", "b_over", "b_under", "hc", "ac", "hy", "ay", "hr", "ar", "hs", "as_", "hst", "ast", "hg", "ag"):
         fx[c] = pd.to_numeric(fx[c], errors="coerce")
 
-    for code in fx["league"].unique():
-        m = fx["league"] == code
-        fx.loc[m, "country"] = LEAGUES[code][0]
-        fx.loc[m, "tier"] = LEAGUES[code][2]
+    fx["country"] = fx["league"].map(lambda code: LEAGUES[code][0])
+    fx["tier"] = fx["league"].map(lambda code: LEAGUES[code][2])
     fx["date"] = pd.to_datetime(fx["date"]).fillna(pd.to_datetime(fx["date_local"]))
     fx["time"] = fx["time"].fillna("") if "time" in fx else ""
     fx = data.fill_season_labels(fx, results)
@@ -309,15 +307,19 @@ def daily(force_retrain=False, verbose=True, write_excel=True) -> dict:
         built = betting.build_favourites(g, s, float(s.get("intl_acca_min_prob", 0.70)))
         if built:
             intl_slips[pd.Timestamp(day).strftime("%Y-%m-%d")] = built
-    pool = betting.acca_pool(pred, s)
-    for day, g in pool.groupby("date_local"):
+    pool = betting.acca_pool(pred[~is_intl], s)
+    # favourites to win: competitive national team matches can join (no friendlies), like the International acca
+    fav_pool = pd.concat([pool, competitive]) if s.get("intl_in_picks", True) else pool
+    for day in sorted(set(fav_pool["date_local"])):
         key = pd.Timestamp(day).strftime("%Y-%m-%d")
+        g = pool[pool["date_local"] == day]
         priced = g[g["odds_h"].notna()]
+        fav = fav_pool[(fav_pool["date_local"] == day) & fav_pool["odds_h"].notna()]
         for target, built in ((slips, betting.build_accas(priced, s, "live")),
-                              (strong_slips, betting.build_favourites(priced, s, s["strong_slips_min_prob"])),
-                              (banger_slips, betting.build_favourites(priced, s, s["banger_slips_min_prob"])),
-                              (other_slips, betting.build_other(g, s)),
-                              (my_picks, betting.build_my_picks(priced, s) if len(priced) else [])):
+                              (strong_slips, betting.build_favourites(fav, s, s["strong_slips_min_prob"])),
+                              (banger_slips, betting.build_favourites(fav, s, s["banger_slips_min_prob"])),
+                              (other_slips, betting.build_other(g, s) if len(g) else []),
+                              (my_picks, betting.build_my_picks(fav, s) if len(fav) else [])):
             if built:
                 target[key] = built
 
@@ -443,6 +445,7 @@ NOTES = [
     "My own recommendation, the most disciplined way to use the model. Each day, only when the model has them: 1 long acca around 5 odds (banger, or strong if there is no banger) and up to 2 safer accas around 2.3 odds (favourites 70%+). No match is used twice.",
     "Same small stake on every slip, at most 1% of your bankroll. I would skip weak picks, the main acca, other leagues in accas, and the other acca until your tracker shows it works.",
     "This exact rule in the 9 season test: 949 slips on about 1 day in 3, 28.0% of slips won, +1.7% at average odds, -0.3% at Bet365, range -9.8% to +13.5%. So about break-even: not a sure profit. Expect losing runs: up to 18 long slips or 10 safer slips in a row.",
+    "National teams: competitive matches (no friendlies) can be in My picks, the strong and the banger acca too. Their accuracy is tested (79% for 65%+ picks), their profit is not: no old odds for national teams.",
     "",
     "THE 4 ACCA SHEETS",
     "All from the 22 main leagues by default (acca_leagues in settings.json), total odds about 4.5-7. Within one sheet every match is used once. A match can appear on more than one sheet. Part 7 of the notebook has the tests.",

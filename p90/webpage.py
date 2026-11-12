@@ -11,6 +11,7 @@ INTRO = {"My picks": [
     "My own recommendation: 1 long acca around 5 odds and up to 2 safer accas around 2.3 odds, only when the model has them. No match is used twice. Same small stake on every slip, at most 1% of your bankroll.",
     "This exact rule in the 9 season test: 28.0% of slips won, +1.7% at average odds, -0.3% at Bet365, range -9.8% to +13.5%. So about break-even, not a sure profit. Expect losing runs: up to 18 long slips or 10 safer slips in a row.",
     "I would skip: weak picks, the main acca, other leagues in accas, and the other acca until your tracker shows it works.",
+    "National teams: competitive matches (no friendlies) can be in My picks, the strong and the banger acca too. Their accuracy is tested (79% for 65%+ picks), their profit is not: no old odds for national teams.",
 ], "Internationals": [
     "National teams, with their own model: ratings for every country plus recent goals. Only in the international windows, and only with the API-Football key.",
     "Test on 11 years (2016-2026), competitive matches: picks 65%+ were right 79% of the time, picks 75%+ 86%. When it says 70%, it happened about 70% of the time.",

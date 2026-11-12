@@ -121,6 +121,7 @@ DEFAULTS = {
     "injury_beta": 0.0095,
     "internationals": True,
     "intl_acca_min_prob": 0.70,
+    "intl_in_picks": True,
     "use_api_football": True,
     "api_odds_budget": 30,
     "utc_offset": 1,
