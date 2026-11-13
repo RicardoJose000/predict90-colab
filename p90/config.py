@@ -140,6 +140,7 @@ DEFAULTS = {
     "bangers_acca_max_odds": 3.0,
     "simple_page": True,
     "mixed_acca_per_market": 2,
+    "one_slip_per_match": True,
     "cups": True,
     "cups_in_picks": True,
     "cup_acca_min_prob": 0.70,

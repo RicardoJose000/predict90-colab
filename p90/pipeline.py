@@ -355,33 +355,51 @@ def daily(force_retrain=False, verbose=True, write_excel=True) -> dict:
     value = betting.value_bets(pred[pred["odds_h"].notna() & ~is_intl & ~is_cup], s, ("odds_h", "odds_d", "odds_a"))
     slips, strong_slips, banger_slips, other_slips, my_picks, intl_slips, cup_slips = {}, {}, {}, {}, {}, {}, {}
     competitive = pred[is_intl & ~pred["league"].isin(["INT_FRIENDLY", "INT_OTHER"]) & pred["odds_h"].notna()]
-    for day, g in competitive.groupby("date_local"):
-        built = betting.build_favourites(g, s, float(s.get("intl_acca_min_prob", 0.70)))
-        if built:
-            intl_slips[pd.Timestamp(day).strftime("%Y-%m-%d")] = built
     cup_fav = pred[is_cup & pred["odds_h"].notna()]
-    for day, g in cup_fav.groupby("date_local"):
-        built = betting.build_favourites(g, s, float(s.get("cup_acca_min_prob", 0.70)))
-        if built:
-            cup_slips[pd.Timestamp(day).strftime("%Y-%m-%d")] = built
     pool = betting.acca_pool(pred[~is_intl & ~is_cup], s)
     # favourites to win: competitive national team matches (no friendlies) and cup matches can join
     fav_pool = pd.concat([pool] + ([competitive] if s.get("intl_in_picks", True) else [])
                          + ([cup_fav] if s.get("cups_in_picks", True) else []))
-    for day in sorted(set(fav_pool["date_local"])):
+
+    # one_slip_per_match: a match goes into one acca only, across ALL the acca sheets, so one bad result
+    # can only hurt one slip. The accas are built in this order, each from the matches still free:
+    # My picks, Mixed acca, Banger accas, Cup acca, International acca, Strong, Banger, Main, Other.
+    one = bool(s.get("one_slip_per_match", True))
+    used: set = set()
+
+    def free(df):
+        return df[~df.index.isin(used)] if one else df
+
+    def take(target, key, built):
+        if built:
+            target[key] = built
+            if one:
+                used.update(i for sl in built for i, *_ in sl["legs"])
+
+    days = sorted(set(fav_pool["date_local"]) | set(pred["date_local"]))
+    for day in days:
         key = pd.Timestamp(day).strftime("%Y-%m-%d")
-        g = pool[pool["date_local"] == day]
-        priced = g[g["odds_h"].notna()]
         fav = fav_pool[(fav_pool["date_local"] == day) & fav_pool["odds_h"].notna()]
-        for target, built in ((slips, betting.build_accas(priced, s, "live")),
-                              (strong_slips, betting.build_favourites(fav, s, s["strong_slips_min_prob"])),
-                              (banger_slips, betting.build_favourites(fav, s, s["banger_slips_min_prob"])),
-                              (other_slips, betting.build_other(g, s) if len(g) else []),
-                              (my_picks, betting.build_my_picks(fav, s) if len(fav) else [])):
-            if built:
-                target[key] = built
-    market_accas = bangers.accas(pred, s)             # {market tab: {day: [slip]}}
-    mixed_accas = bangers.mixed_accas(pred, s)        # {day: [slip]}
+        take(my_picks, key, betting.build_my_picks(fav, s) if len(fav) else [])
+    mixed_accas = bangers.mixed_accas(free(pred), s)          # {day: [slip]}
+    for key, built in list(mixed_accas.items()):
+        take(mixed_accas, key, built)
+    market_accas = bangers.accas(pred, s, used if one else None)   # {market tab: {day: [slip]}}, fills `used`
+    for target, frame, min_prob in ((cup_slips, cup_fav, s.get("cup_acca_min_prob", 0.70)),
+                                    (intl_slips, competitive, s.get("intl_acca_min_prob", 0.70))):
+        for day, g in free(frame).groupby("date_local"):
+            take(target, pd.Timestamp(day).strftime("%Y-%m-%d"), betting.build_favourites(g, s, float(min_prob)))
+    for day in days:
+        key = pd.Timestamp(day).strftime("%Y-%m-%d")
+        fav = free(fav_pool[(fav_pool["date_local"] == day) & fav_pool["odds_h"].notna()])
+        take(strong_slips, key, betting.build_favourites(fav, s, s["strong_slips_min_prob"]) if len(fav) else [])
+        fav = free(fav)
+        take(banger_slips, key, betting.build_favourites(fav, s, s["banger_slips_min_prob"]) if len(fav) else [])
+        g = free(pool[pool["date_local"] == day])
+        priced = g[g["odds_h"].notna()]
+        take(slips, key, betting.build_accas(priced, s, "live") if len(priced) else [])
+        g = free(g)
+        take(other_slips, key, betting.build_other(g, s) if len(g) else [])
 
     out = {"predictions": pred, "value": value, "slips": slips, "strong_slips": strong_slips,
            "banger_slips": banger_slips, "other_slips": other_slips, "my_picks": my_picks, "intl_slips": intl_slips,
@@ -536,6 +554,10 @@ NOTES = [
     "MIXED ACCA",
     "One acca a day from the bangers of every kind: the top 2 of 1X2, Over 2.5, Over 1.5, corners, cards and shots (mixed_acca_per_market in settings.json: 1 = shorter and safer). Safest first. Every match only once: a match that is top in two kinds goes where it is safest, and the other kind takes its next banger.",
     "Test on 9 seasons (clubs): 2,075 days, on average 7.6 legs at about 3.8 total odds. Every leg won on 22% of days (the model said 22%), on another 32% only one leg lost. Top 1 of each kind: 4.4 legs, about 2.1 odds, won 38%. Most corners, cards and shots prices are estimates, so profit is not tested."
+    "",
+    "ONE SLIP PER MATCH",
+    "A match goes into one acca only, across all acca sheets (one_slip_per_match in settings.json). So one bad result, like a favourite that draws, can only hurt one slip. The order: My picks first, then Mixed acca, Banger accas, Cup acca, International acca, Strong, Banger, Main, Other: each takes the best matches that are still free.",
+    "The tests of each acca were made with each sheet on its own, so later sheets can now have other legs or fewer slips. Set it to false to let every sheet pick freely.",
     "",
     "THE 4 ACCA SHEETS",
     "All from the 22 main leagues by default (acca_leagues in settings.json), total odds about 4.5-7. Within one sheet every match is used once. A match can appear on more than one sheet. Part 7 of the notebook has the tests.",

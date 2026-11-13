@@ -182,8 +182,9 @@ def market_slip(t: pd.DataFrame, s: dict) -> list[dict]:
                                "acca_max_legs": int(s.get("acca_max_legs", 7))})
 
 
-def accas(pred: pd.DataFrame, s: dict) -> dict[str, dict[str, list]]:
-    """{tab name: {day: [slip]}}, one slip per market and day at most."""
+def accas(pred: pd.DataFrame, s: dict, used: set | None = None) -> dict[str, dict[str, list]]:
+    """{tab name: {day: [slip]}}, one slip per market and day at most.
+    used (optional): matches already in another acca. They are skipped, and this function adds its own."""
     b = legs(pred, s)
     if b.empty:
         return {}
@@ -191,9 +192,13 @@ def accas(pred: pd.DataFrame, s: dict) -> dict[str, dict[str, list]]:
     out = {}
     for tab, market in MARKETS.items():
         for d, g in b[b["market"] == market].groupby(day[b["market"] == market]):
-            sl = market_slip(g, s)
+            if used is not None:
+                g = g[~g.index.isin(used)]
+            sl = market_slip(g, s) if len(g) else []
             if sl:
                 out.setdefault(tab, {})[d] = [{**x, "set": f"{tab} acca"} for x in sl]
+                if used is not None:
+                    used.update(i for x in sl for i, *_ in x["legs"])
     return out
 
 
