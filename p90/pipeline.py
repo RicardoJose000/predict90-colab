@@ -15,9 +15,9 @@ import joblib
 import numpy as np
 import pandas as pd
 
-from . import bangers, betting, data, evaluate, intl, live, props, report, tracker, webpage
+from . import bangers, betting, cups, data, evaluate, intl, live, props, report, tracker, webpage
 from .backtest import fit_all, past_warmup, predict_all, walk_forward
-from .config import DATA, INTL_LEAGUES, LEAGUES, MAIN_LEAGUES, MODELS, OUTPUT, ROOT, current_season_start, league_label, load_settings
+from .config import CUP_LEAGUES, DATA, INTL_LEAGUES, LEAGUES, MAIN_LEAGUES, MODELS, OUTPUT, ROOT, current_season_start, league_label, load_settings
 from .config import league_type as _league_type
 from .features import build_features
 
@@ -176,7 +176,14 @@ def internationals(s: dict, verbose=True) -> tuple[pd.DataFrame, pd.DataFrame | 
     log(f"  internationals: {len(p)} national team matches today/tomorrow", verbose)
     if p.empty:
         return p, res
-    odds = live.api_odds(api, days, [int(f) for f in p["fixture_id"]], per_match_budget=int(s.get("intl_odds_budget", 20)))
+    p = _attach_odds(p, api, days, int(s.get("intl_odds_budget", 20)))
+    p["model"] = "national teams"
+    return p, res
+
+
+def _attach_odds(p: pd.DataFrame, api, days, budget: int) -> pd.DataFrame:
+    """Bet365 odds for national team or cup matches, in the same columns as the clubs."""
+    odds = live.api_odds(api, days, [int(f) for f in p["fixture_id"]], per_match_budget=budget)
     for c in INTL_ODDS:
         p[c] = pd.to_numeric(p["fixture_id"].map(lambda f: odds.get(int(f), {}).get(c)), errors="coerce")
     p["more_odds"] = p["fixture_id"].map(lambda f: odds.get(int(f), {}).get("more"))
@@ -187,8 +194,39 @@ def internationals(s: dict, verbose=True) -> tuple[pd.DataFrame, pd.DataFrame | 
     inv2 = 1 / p[["b_over", "b_under"]].to_numpy(float)
     p["mk_over"] = inv2[:, 0] / inv2.sum(1)
     p["date"] = pd.to_datetime(p["date_local"])
-    p["model"] = "national teams"
     p["source"] = "API-Football"
+    return p
+
+
+def cup_rows(results: pd.DataFrame, s: dict, verbose=True) -> pd.DataFrame | None:
+    """Cup matches to predict today/tomorrow, plus the finished ones to train on (p90/cups.py)."""
+    if not s.get("cups", True):
+        return None
+    api = live.ApiFootball(verbose=verbose)
+    if not (s.get("use_api_football") and api.ok):
+        log("  cups: need the API-Football key (football-data.co.uk has no cups)", verbose)
+        return None
+    try:
+        return cups.prepare(api, [date.today(), date.today() + timedelta(days=1)], results)
+    except Exception as e:                       # never let them stop the league predictions
+        log(f"  ! cups skipped this time: {type(e).__name__}: {e}", verbose)
+        return None
+
+
+def cup_matches(rows, state, s: dict, verbose=True) -> tuple[pd.DataFrame, pd.DataFrame]:
+    if rows is None or state is None:
+        return pd.DataFrame(), pd.DataFrame()
+    try:
+        p, res = cups.finish(rows, state, int(s.get("utc_offset", 1)), verbose)
+    except Exception as e:
+        log(f"  ! cups skipped this time: {type(e).__name__}: {e}", verbose)
+        return pd.DataFrame(), pd.DataFrame()
+    log(f"  cups: {len(p)} cup matches today/tomorrow", verbose)
+    if p.empty:
+        return p, res
+    days = [date.today(), date.today() + timedelta(days=1)]
+    p = _attach_odds(p, live.ApiFootball(verbose=verbose), days, int(s.get("cups_odds_budget", 15)))
+    p["model"] = "cups"
     return p, res
 
 
@@ -232,17 +270,26 @@ def daily(force_retrain=False, verbose=True, write_excel=True) -> dict:
     log("2/5 Upcoming matches", verbose)
     fx, inj, info = upcoming_matches(results, s, verbose)
     ip, ires = internationals(s, verbose)
+    crows = cup_rows(results, s, verbose)
     log("3/5 Building features", verbose)
-    feat = props.add_features(build_features(pd.concat([results, fx], ignore_index=True)))
+    both = pd.concat([results, fx], ignore_index=True)
+    cstate = None
+    if crows is not None:                        # the cup matches read the clubs' league state in the same pass
+        base, cstate = build_features(both, probes=cups.probes(crows))
+    else:
+        base = build_features(both)
+    feat = props.add_features(base)
+    cp, cres = cup_matches(crows, cstate, s, verbose)
     log("4/5 Models", verbose)
     models = get_models(feat, s, force=force_retrain, verbose=verbose)
     up = feat[feat["y"].isna()].copy()
-    settle_with = pd.concat([results, intl_results_for_tracker(ires)], ignore_index=True)
-    if up.empty and ip.empty:
+    settle_with = pd.concat([results, intl_results_for_tracker(ires), cres], ignore_index=True)
+    if up.empty and ip.empty and cp.empty:
         log("No upcoming matches found for the next days.", verbose)
         _update_tracker([], settle_with, s, verbose)
         return {"predictions": pd.DataFrame(), "results": results, "settings": s, "feat": feat,
                 "slips": {}, "strong_slips": {}, "banger_slips": {}, "other_slips": {}, "my_picks": {}, "intl_slips": {}, "market_accas": {},
+                "mixed_accas": {}, "cup_slips": {},
                 "value": pd.DataFrame(), "injuries": inj, "info": info}
 
     log("5/5 Predictions", verbose)
@@ -254,11 +301,13 @@ def daily(force_retrain=False, verbose=True, write_excel=True) -> dict:
         pred = predict_all(models, up)
         pred[extra] = up[extra]
         pred = pd.concat([pred, props.predict(models["props"], up)], axis=1)
-    if not ip.empty:
-        keep = [c for c in ip.columns if c in pred.columns or c.startswith(("p_", "b_", "o_", "mk_")) or c in
+    for extra in (ip, cp):                       # national teams and cups, each with its own model
+        if extra.empty:
+            continue
+        keep = [c for c in extra.columns if c in pred.columns or c.startswith(("p_", "b_", "o_", "mk_")) or c in
                 ("league", "home", "away", "date", "date_local", "time_local", "fixture_id", "api_home", "api_away",
                  "source", "model", "more_odds", "xg_h", "xg_a", "competition")]
-        pred = pd.concat([pred, ip[keep]], ignore_index=True) if len(pred) else ip[keep].reset_index(drop=True)
+        pred = pd.concat([pred, extra[keep]], ignore_index=True) if len(pred) else extra[keep].reset_index(drop=True)
     # a day with only national teams (or only clubs) still needs every column the sheets use
     club_only = [f"p_{b}" for b in models["props"]["goals"]] + \
         [f"{k}_{n}" for n in models["props"]["counts"] for k in ("mu", "alpha")] + \
@@ -297,19 +346,28 @@ def daily(force_retrain=False, verbose=True, write_excel=True) -> dict:
     pred["top"] = P.max(1)
     pred["confidence"] = tier_label(pred["top"], s)
     is_intl = pred["league"].isin(INTL_LEAGUES)
+    is_cup = pred["league"].isin(CUP_LEAGUES)
     pred.loc[pred["league"] == "INT_FRIENDLY", "confidence"] = "WEAK"     # squads change a lot in friendlies
+    # European cups: their 75%+ picks were right only 71% in the test, so never BANGER
+    pred.loc[pred["league"].isin(bangers.EUROPEAN_CUPS) & (pred["confidence"] == "BANGER"), "confidence"] = "STRONG"
 
-    # value bets need a model that knows the market: the national team model has no old odds to learn from
-    value = betting.value_bets(pred[pred["odds_h"].notna() & ~is_intl], s, ("odds_h", "odds_d", "odds_a"))
-    slips, strong_slips, banger_slips, other_slips, my_picks, intl_slips = {}, {}, {}, {}, {}, {}
+    # value bets need a model that knows the market: the national team and cup models have no old odds to learn from
+    value = betting.value_bets(pred[pred["odds_h"].notna() & ~is_intl & ~is_cup], s, ("odds_h", "odds_d", "odds_a"))
+    slips, strong_slips, banger_slips, other_slips, my_picks, intl_slips, cup_slips = {}, {}, {}, {}, {}, {}, {}
     competitive = pred[is_intl & ~pred["league"].isin(["INT_FRIENDLY", "INT_OTHER"]) & pred["odds_h"].notna()]
     for day, g in competitive.groupby("date_local"):
         built = betting.build_favourites(g, s, float(s.get("intl_acca_min_prob", 0.70)))
         if built:
             intl_slips[pd.Timestamp(day).strftime("%Y-%m-%d")] = built
-    pool = betting.acca_pool(pred[~is_intl], s)
-    # favourites to win: competitive national team matches can join (no friendlies), like the International acca
-    fav_pool = pd.concat([pool, competitive]) if s.get("intl_in_picks", True) else pool
+    cup_fav = pred[is_cup & pred["odds_h"].notna()]
+    for day, g in cup_fav.groupby("date_local"):
+        built = betting.build_favourites(g, s, float(s.get("cup_acca_min_prob", 0.70)))
+        if built:
+            cup_slips[pd.Timestamp(day).strftime("%Y-%m-%d")] = built
+    pool = betting.acca_pool(pred[~is_intl & ~is_cup], s)
+    # favourites to win: competitive national team matches (no friendlies) and cup matches can join
+    fav_pool = pd.concat([pool] + ([competitive] if s.get("intl_in_picks", True) else [])
+                         + ([cup_fav] if s.get("cups_in_picks", True) else []))
     for day in sorted(set(fav_pool["date_local"])):
         key = pd.Timestamp(day).strftime("%Y-%m-%d")
         g = pool[pool["date_local"] == day]
@@ -323,16 +381,17 @@ def daily(force_retrain=False, verbose=True, write_excel=True) -> dict:
             if built:
                 target[key] = built
     market_accas = bangers.accas(pred, s)             # {market tab: {day: [slip]}}
+    mixed_accas = bangers.mixed_accas(pred, s)        # {day: [slip]}
 
     out = {"predictions": pred, "value": value, "slips": slips, "strong_slips": strong_slips,
            "banger_slips": banger_slips, "other_slips": other_slips, "my_picks": my_picks, "intl_slips": intl_slips,
-           "market_accas": market_accas, "injuries": inj, "results": results,
+           "market_accas": market_accas, "mixed_accas": mixed_accas, "cup_slips": cup_slips, "injuries": inj, "results": results,
            "settings": s, "info": info, "feat": feat}
     if write_excel:
         path = export_excel(out)
         out["excel"] = path
         sets = (("Main acca", slips), ("Strong acca", strong_slips), ("Banger acca", banger_slips), ("Other acca", other_slips),
-                ("Picks acca", my_picks), ("International acca", intl_slips),
+                ("Picks acca", my_picks), ("International acca", intl_slips), ("Cup acca", cup_slips), ("Mixed acca", mixed_accas),
                 *((f"{tab} acca", by_day) for tab, by_day in market_accas.items()))
         out["tracker"] = _update_tracker(tracker.entries_from(pred, value, sets, s), settle_with, s, verbose)
         log(f"\nSaved: {path.name} and {path.stem}.html in the output folder", verbose)
@@ -341,9 +400,11 @@ def daily(force_retrain=False, verbose=True, write_excel=True) -> dict:
         f"{len(value)} value bets, accas: {sum(len(v) for v in slips.values())} main, {sum(len(v) for v in strong_slips.values())} strong, "
         f"{sum(len(v) for v in banger_slips.values())} banger, {sum(len(v) for v in other_slips.values())} other, "
         f"{sum(len(v) for v in my_picks.values())} my picks, "
-        f"{sum(len(x) for v in market_accas.values() for x in v.values())} banger accas by market"
+        f"{sum(len(x) for v in market_accas.values() for x in v.values())} banger accas by market, "
+        f"{sum(len(v) for v in mixed_accas.values())} mixed"
         + (f" | {int(is_intl.sum())} national team matches, {sum(len(v) for v in intl_slips.values())} international accas"
-           if is_intl.any() else ""), verbose)
+           if is_intl.any() else "")
+        + (f" | {int(is_cup.sum())} cup matches, {sum(len(v) for v in cup_slips.values())} cup accas" if is_cup.any() else ""), verbose)
     return out
 
 
@@ -410,17 +471,20 @@ def tables(out: dict) -> dict[str, pd.DataFrame]:
     btts = markets["BTTS"].assign(**{"BTTS yes %": lambda x: x["Yes %"]})
     n = int(s.get("top_n_per_league", 3))
     nat = base[base["League type"] == "International"].sort_values("Pick %", ascending=False)
+    cup = base[base["League type"] == "Cup"].sort_values("Pick %", ascending=False)
     by_market = out.get("market_accas", {})
     days = sorted({d for v in by_market.values() for d in v})
     market_slips = {d: [sl for v in by_market.values() for sl in v.get(d, [])] for d in days}
     sheets = {"My picks": slip_sheet(out["my_picks"]),
               **bangers.tables(pred, s, league_label, _league_type, betting.pick_name),
               bangers.ACCA_TAB: slip_sheet(market_slips),
-              "All": base, "Bangers": group("BANGER"), "Strong": group("STRONG"),
-              "Weak": group("WEAK"), "Internationals": nat, "Value bets": vb,
+              bangers.MIXED_TAB: slip_sheet(out.get("mixed_accas", {})),
+              "All predictions": base, "Bangers": group("BANGER"), "Strong": group("STRONG"),
+              "Weak": group("WEAK"), "Cups": cup, "Internationals": nat, "Value bets": vb,
               "Main acca": slip_sheet(out["slips"]), "Strong acca": slip_sheet(out["strong_slips"]),
               "Banger acca": slip_sheet(out["banger_slips"]), "Other acca": slip_sheet(out["other_slips"]),
               "International acca": slip_sheet(out.get("intl_slips", {})),
+              "Cup acca": slip_sheet(out.get("cup_slips", {})),
               "Top favourites": props.top_per_league(picks, "Pick %", n, ["Pick", "Pick %", "Strength", "Pick odds"]),
               "Top goals": props.top_per_league(goals, "Over 2.5 %", n, ["Over 2.5 %", "Bookmaker over %", "Over odds", "BTTS %"]),
               "Top BTTS": props.top_per_league(btts, "BTTS yes %", n, ["BTTS yes %", "Yes odds", "No odds"]),
@@ -436,10 +500,11 @@ def tables(out: dict) -> dict[str, pd.DataFrame]:
 NOTES = [
     "PREDICT/90 - how to read this file",
     "",
-    "PREDICTIONS (sheets All, Bangers, Strong, Weak)",
+    "PREDICTIONS (sheets All predictions, Bangers, Strong, Weak)",
     "Home % / Draw % / Away %: the model's chance for each result. The three always add up to 100%.",
     "Pick: the most likely result. Strength: BANGER = pick is 75%+, STRONG = 65-75%, GOOD = 50-65%, WEAK = below 50%. In the test they were right 81%, 70%, 57% and 42% of the time.",
-    "League type: Main = the 22 main leagues, Other = the 16 other leagues, International = national teams. Every sheet has filter arrows at the top: filter by Strength, League type or anything else.",
+    "League type: Main = the 22 main leagues, Other = the 16 other leagues, Cup = the cups, International = national teams. Every sheet has filter arrows at the top: filter by Strength, League type or anything else.",
+    "All predictions has every match: what is not in a list or an acca is still there.",
     "Odds 1 / X / 2: average bookmaker odds (football-data.co.uk) or Bet365 (API-Football).",
     "Best odds (pick): the highest price on the market for the pick. Compare it with what your bookmaker pays.",
     "The price you take matters a lot for accas: see part 7 of the notebook.",
@@ -462,10 +527,15 @@ NOTES = [
     "Corners, cards and shots: every match once, at its highest line that is still 75%+ (never below 6.5 corners, 2.5 cards, 15.5 shots).",
     "Test on 9 seasons, each predicted only with the seasons before it: right 1X2 81%, Over 2.5 81%, Over 1.5 80%, corners 79%, cards 82%, shots 78%. Lowest season 73-79%. National teams: 1X2 86%, Over 1.5 81% (competitive matches only, no Over 2.5).",
     "No BTTS bangers: in 100,000 test matches the model never reached 75% for BTTS (highest 71%).",
+    "Cups: domestic cups in 1X2 (82% in the test), Over 2.5 and Over 1.5. European cups only in Over 1.5: their 75%+ 1X2 picks were right only 71% in the test.",
     "BANGER ACCAS: one acca per market and day, from that market's bangers only, total odds about 2 to 3 (bangers_acca_min_odds / max_odds). One market per slip, so the same match is never twice in a slip.",
     "In the test all legs won in 42% (1X2), 33% (Over 1.5), 30% (corners), 37% (cards), 36% (shots) of slips. At real old odds the 1X2 acca lost about 8% per slip (the bookmaker margin); the others have no old odds, so profit is not tested. Part 5c of the notebook has the tables.",
     "Odds = Bet365 when API-Football has that line, otherwise an estimate (our chance + a normal margin): check the price at your bookmaker.",
-    "The page shows My picks and Bangers first. Press More for everything else (simple_page: false shows all at once). The Excel file always has every sheet.",
+    "The page shows My picks, Bangers, Mixed acca and All predictions first. Press More for everything else (simple_page: false shows all at once). The Excel file always has every sheet.",
+    "",
+    "MIXED ACCA",
+    "One acca a day from the bangers of every kind: the top 2 of 1X2, Over 2.5, Over 1.5, corners, cards and shots (mixed_acca_per_market in settings.json: 1 = shorter and safer). Safest first. Every match only once: a match that is top in two kinds goes where it is safest, and the other kind takes its next banger.",
+    "Test on 9 seasons (clubs): 2,075 days, on average 7.6 legs at about 3.8 total odds. Every leg won on 22% of days (the model said 22%), on another 32% only one leg lost. Top 1 of each kind: 4.4 legs, about 2.1 odds, won 38%. Most corners, cards and shots prices are estimates, so profit is not tested."
     "",
     "THE 4 ACCA SHEETS",
     "All from the 22 main leagues by default (acca_leagues in settings.json), total odds about 4.5-7. Within one sheet every match is used once. A match can appear on more than one sheet. Part 7 of the notebook has the tests.",
@@ -485,6 +555,13 @@ NOTES = [
     "Their own model: ratings for every country plus recent goals (part 5b of the notebook). Test on 11 years, competitive matches: picks 65%+ right 79% of the time, 75%+ 86%.",
     "Friendlies are always WEAK: squads change a lot there. League type = International, so you can filter them.",
     "INTERNATIONAL ACCA: favourites to win only, competitive matches only, every leg 70%+ (intl_acca_min_prob in settings.json). Accuracy tested, profit not: no old odds for national teams. No value bets on national teams for the same reason.",
+    "",
+    "CUPS (sheets Cups and Cup acca)",
+    "Champions League, Europa League, Conference League, FA Cup, Carabao Cup, Copa del Rey, DFB Pokal, Coppa Italia, Coupe de France, Scottish Cup and League Cup, KNVB Beker, Taca de Portugal. Needs the API-Football key.",
+    "Their own model on the clubs' league form: strength, form, level (a small club below our leagues), country strength in European matches, neutral finals. Bets settle after 90 minutes, so the model learned the 90 minute score.",
+    "Test on 2 seasons (2023/24 and 2024/25), each predicted only with the seasons before it, 2,134 matches: all cups 57% right, picks 65%+ 75%, 75%+ 79%. Domestic cups 75%+: 82%. European cups 75%+: 71%, so a European pick is never BANGER.",
+    "Skipped, no blind guesses: European matches with a club from a country we have no league for, and small clubs whose name looks like a league club's.",
+    "CUP ACCA: cup favourites to win only, every leg 70%+ (cup_acca_min_prob). Cup matches can also be in My picks, the strong and the banger acca (cups_in_picks). No value bets on cups: no old cup odds, so profit is not tested.",
     "",
     "TOP BY LEAGUE (sheets Top favourites, Top goals, Top BTTS, Top corners)",
     "The top matches of each league, 3 by default: top_n_per_league in settings.json. A top list is still only chances: check the Strength and the odds.",

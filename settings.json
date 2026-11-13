@@ -27,6 +27,11 @@
   "bangers_acca_min_odds": 2.0,
   "bangers_acca_max_odds": 3.0,
   "simple_page": true,
+  "mixed_acca_per_market": 2,
+  "cups": true,
+  "cups_in_picks": true,
+  "cup_acca_min_prob": 0.7,
+  "cups_odds_budget": 15,
   "use_api_football": true,
   "api_odds_budget": 30,
   "utc_offset": 1,
@@ -71,7 +76,12 @@
     "bangers_min_line": "Bangers tab: corners, cards and shots never go below these lines (lower lines are hardly offered by bookmakers)",
     "bangers_acca_min_odds": "banger accas (one per market and day): a slip is finished when its total odds reach this",
     "bangers_acca_max_odds": "banger accas: a slip never goes above these total odds",
-    "simple_page": "true = the results page shows My picks and Bangers first, the rest behind the More button. false = show everything"
+    "simple_page": "true = the results page shows My picks, Bangers, Mixed acca and All predictions first, the rest behind the More button. false = show everything",
+    "mixed_acca_per_market": "Mixed acca: how many bangers of each kind (1X2, over 2.5, over 1.5, corners, cards, shots). 2 = about 7-8 legs, 1 = about 4 legs, shorter and safer",
+    "cups": "true = also predict the cups: Champions League, Europa League, Conference League and the big domestic cups. Needs the API-Football key",
+    "cups_in_picks": "true = cup matches can also be in My picks, the strong and the banger acca. Accuracy tested, profit not",
+    "cup_acca_min_prob": "Cup acca: favourites to win only, every leg at least this chance",
+    "cups_odds_budget": "max single-match odds requests per run for cup matches"
   },
   "acca_leagues": "main",
   "acca_markets": [

@@ -29,7 +29,13 @@ def _mean(vals):
     return sum(v) / len(v) if v else np.nan
 
 
-def build_features(df: pd.DataFrame) -> pd.DataFrame:
+PROBE_COLS = ("elo", "tier", "pts5", "pts10", "gf10", "ga10", "gd5", "att", "def", "rest", "played", "idle", "lg_g")
+
+
+def build_features(df: pd.DataFrame, probes: pd.DataFrame | None = None):
+    """probes (optional): cup matches with columns date, country_h, team_h, country_a, team_a. They only READ
+    the state of both clubs from before their date (league matches only, nothing is changed by them), and
+    come back as a second table. Without probes the result is exactly the same as before."""
     df = df.sort_values(["date", "league", "home"], kind="mergesort").reset_index(drop=True)
 
     elo: dict = {}
@@ -51,6 +57,41 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     get = df.to_dict("list")
     n = len(df)
 
+    # ---- probes: read-only look at both clubs (cups)
+    pr_rows, pj = [], 0
+    if probes is not None and len(probes):
+        probes = probes.sort_values("date", kind="mergesort")
+        pr_idx = list(probes.index)
+        pr = probes.to_dict("list")
+    else:
+        pr_idx, pr = [], {}
+    league_of: dict = {}
+
+    def side_state(k, when):
+        if k not in elo:
+            return {c: np.nan for c in PROBE_COLS}
+        H = hist[k]
+        last5 = list(H)[-5:]
+        L = lg[league_of.get(k)]
+        lg_g = (sum(r[1] + r[2] for r in L) / (2 * len(L))) if len(L) >= 30 else 1.3
+        return {"elo": elo[k], "tier": float(tier_of[k]), "pts5": _mean([x[0] for x in last5]),
+                "pts10": _mean([x[0] for x in H]), "gf10": _mean([x[1] for x in H]), "ga10": _mean([x[2] for x in H]),
+                "gd5": _mean([x[1] - x[2] for x in last5]), "att": att[k], "def": dfn[k],
+                "rest": min((when - last_date[k]).days, 21) if k in last_date else 14,
+                "played": min(n_season[k], 10), "idle": (when - last_date[k]).days if k in last_date else 9999,
+                "lg_g": lg_g}
+
+    def emit_probes(upto):
+        nonlocal pj
+        while pj < len(pr_idx) and (upto is None or pr["date"][pj] <= upto):
+            when = pr["date"][pj]
+            row = {"_i": pr_idx[pj]}
+            for side in ("h", "a"):
+                st = side_state((pr[f"country_{side}"][pj], pr[f"team_{side}"][pj]), when)
+                row.update({f"{c}_{side}": v for c, v in st.items()})
+            pr_rows.append(row)
+            pj += 1
+
     for i in range(n):
         country, league, tier, season = get["country"][i], get["league"][i], get["tier"][i], get["season"][i]
         date = get["date"][i]
@@ -59,6 +100,8 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
             for lg_code, item in pending:
                 lg[lg_code].append(item)
             pending, current_day = [], date
+        if pr_idx:
+            emit_probes(date)
 
         # league trends
         L = lg[league]
@@ -87,6 +130,7 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
                 att[k], dfn[k] = 0.8 * att[k] + 0.2 * lg_g, 0.8 * dfn[k] + 0.2 * lg_g
                 n_season[k] = 0
             tier_of[k], season_of[k] = tier, season
+            league_of[k] = league
 
         eh, ea = elo[kh], elo[ka]
         cols["elo_h"].append(eh)
@@ -149,6 +193,11 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
             pending.append((league, (r, gh, ga)))
             M.append((kh[1], gh, ga))
 
+    if pr_idx:                                       # probes after the last result: newest state
+        for lg_code, item in pending:
+            lg[lg_code].append(item)
+        emit_probes(None)
+
     F = pd.DataFrame(cols, index=df.index)
     out = pd.concat([df, F], axis=1)
     out["elo_exp"] = 1.0 / (1.0 + 10 ** (-out["elo_diff"] / 400.0))
@@ -165,6 +214,10 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     played = out["y"].notna()
     out["over25"] = np.where(played, (out["hg"] + out["ag"] > 2.5).astype(float), np.nan)
     out["btts"] = np.where(played, ((out["hg"] > 0) & (out["ag"] > 0)).astype(float), np.nan)
+    if probes is not None:
+        P = pd.DataFrame(pr_rows)
+        P = P.set_index("_i").reindex(probes.index) if len(P) else pd.DataFrame(index=probes.index)
+        return out, P
     return out
 
 

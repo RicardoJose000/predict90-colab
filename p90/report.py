@@ -60,7 +60,7 @@ def write_predictions(path: Path, sheets: dict[str, pd.DataFrame], notes: list[s
             df.to_excel(xw, sheet_name=name, index=False)
             ws = xw.sheets[name]
             _style(ws, df)
-            if name == "All":
+            if name in ("All", "All predictions"):
                 _fill_rows(ws, df, "Strength", {"BANGER": STRONG, "STRONG": STRONG, "GOOD": CONF})
             if "acca" in name or name == "My picks":
                 _fill_rows(ws, df, "Row", {"SLIP": SLIP})

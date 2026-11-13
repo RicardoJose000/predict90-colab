@@ -78,15 +78,27 @@ INTL_LEAGUES = {
 }
 
 
+# cups (p90/cups.py): European cups and the big domestic cups
+CUP_LEAGUES = {
+    "CUP_UCL": "Champions League", "CUP_UEL": "Europa League", "CUP_UECL": "Conference League",
+    "CUP_FA": "England FA Cup", "CUP_EFL": "England League Cup (Carabao)", "CUP_CDR": "Spain Copa del Rey",
+    "CUP_DFB": "Germany DFB Pokal", "CUP_CI": "Italy Coppa Italia", "CUP_CDF": "France Coupe de France",
+    "CUP_SCO": "Scottish Cup", "CUP_SLC": "Scottish League Cup", "CUP_KNVB": "Netherlands KNVB Beker",
+    "CUP_TACA": "Portugal Taca de Portugal",
+}
+
+
 def league_label(code: str) -> str:
     if code in INTL_LEAGUES:
         return f"International - {INTL_LEAGUES[code]}"
+    if code in CUP_LEAGUES:
+        return f"Cup - {CUP_LEAGUES[code]}"
     c, n, *_ = LEAGUES[code]
     return f"{c} - {n}"
 
 
 def league_type(code: str) -> str:
-    return "Main" if code in MAIN_LEAGUES else "International" if code in INTL_LEAGUES else "Other"
+    return "Main" if code in MAIN_LEAGUES else "International" if code in INTL_LEAGUES else "Cup" if code in CUP_LEAGUES else "Other"
 
 
 DEFAULTS = {
@@ -127,6 +139,11 @@ DEFAULTS = {
     "bangers_acca_min_odds": 2.0,
     "bangers_acca_max_odds": 3.0,
     "simple_page": True,
+    "mixed_acca_per_market": 2,
+    "cups": True,
+    "cups_in_picks": True,
+    "cup_acca_min_prob": 0.70,
+    "cups_odds_budget": 15,
     "use_api_football": True,
     "api_odds_budget": 30,
     "utc_offset": 1,

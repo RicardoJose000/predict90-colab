@@ -67,6 +67,7 @@ BRA,Atletico Paranaense,Athletico-PR
 BRA,Atletico-MG,Atletico-MG
 BRA,Bahia,Bahia
 BRA,Botafogo,Botafogo RJ
+BRA,Chapecoense-sc,Chapecoense-SC
 BRA,Corinthians,Corinthians
 BRA,Criciuma,Criciuma
 BRA,Cruzeiro,Cruzeiro
@@ -77,6 +78,7 @@ BRA,Fortaleza EC,Fortaleza
 BRA,Gremio,Gremio
 BRA,Internacional,Internacional
 BRA,Juventude,Juventude
+BRA,Mirassol,Mirassol
 BRA,Palmeiras,Palmeiras
 BRA,RB Bragantino,Bragantino
 BRA,Remo,Remo
@@ -218,6 +220,7 @@ E1,Watford,Watford
 E1,West Brom,West Brom
 E1,West Ham,West Ham
 E1,Wrexham,Wrexham
+E2,AFC Wimbledon,AFC Wimbledon
 E2,Barnsley,Barnsley
 E2,Birmingham,Birmingham
 E2,Blackpool,Blackpool
@@ -232,8 +235,11 @@ E2,Huddersfield,Huddersfield
 E2,Leyton Orient,Leyton Orient
 E2,Lincoln,Lincoln
 E2,Mansfield Town,Mansfield
+E2,Milton Keynes Dons,Milton Keynes Dons
 E2,Northampton,Northampton
+E2,Oxford United,Oxford
 E2,Peterborough,Peterboro
+E2,Plymouth,Plymouth
 E2,Reading,Reading
 E2,Rotherham,Rotherham
 E2,Shrewsbury,Shrewsbury
@@ -246,6 +252,7 @@ E3,AFC Wimbledon,AFC Wimbledon
 E3,Accrington ST,Accrington
 E3,Barrow,Barrow
 E3,Bradford,Bradford
+E3,Bristol Rovers,Bristol Rvs
 E3,Bromley,Bromley
 E3,Carlisle,Carlisle
 E3,Cheltenham,Cheltenham
@@ -253,6 +260,7 @@ E3,Chesterfield,Chesterfield
 E3,Colchester,Colchester
 E3,Crewe,Crewe
 E3,Doncaster,Doncaster
+E3,Exeter City,Exeter
 E3,Fleetwood Town,Fleetwood Town
 E3,Gillingham,Gillingham
 E3,Grimsby,Grimsby
@@ -260,34 +268,47 @@ E3,Harrogate Town,Harrogate
 E3,Milton Keynes Dons,Milton Keynes Dons
 E3,Morecambe,Morecambe
 E3,Newport County,Newport County
+E3,Northampton,Northampton
 E3,Notts County,Notts County
+E3,Oldham,Oldham
 E3,Port Vale,Port Vale
+E3,Rochdale,Rochdale
 E3,Salford City,Salford
+E3,Shrewsbury,Shrewsbury
 E3,Swindon Town,Swindon
 E3,Tranmere,Tranmere
 E3,Walsall,Walsall
+E3,York,York
 EC,AFC Fylde,Fylde
+EC,AFC Hornchurch,Hornchurch
 EC,Aldershot Town,Aldershot
 EC,Altrincham,Altrincham
 EC,Barnet,Barnet
+EC,Barrow,Barrow
+EC,Boreham Wood,Boreham Wood
 EC,Boston United,Boston Utd
 EC,Braintree,Braintree Town
+EC,Carlisle,Carlisle
 EC,Dagenham & Redbridge,Dag and Red
 EC,Eastleigh,Eastleigh
 EC,Ebbsfleet United,Ebbsfleet
 EC,FC Halifax Town,Halifax
 EC,Forest Green,Forest Green
 EC,Gateshead,Gateshead
+EC,Harrogate Town,Harrogate
 EC,Hartlepool,Hartlepool
+EC,Kidderminster Harriers,Kidderminster
 EC,Maidenhead,Maidenhead
 EC,Oldham,Oldham
 EC,Rochdale,Rochdale
+EC,Scunthorpe,Scunthorpe
 EC,Solihull Moors,Solihull
 EC,Southend,Southend
 EC,Sutton Utd,Sutton
 EC,Tamworth,Tamworth
 EC,Wealdstone,Wealdstone
 EC,Woking,Woking
+EC,Worthing,Worthing
 EC,Yeovil Town,Yeovil
 EC,York,York
 F1,Angers,Angers
@@ -699,6 +720,7 @@ SP2,Deportivo La Coruna,La Coruna
 SP2,Eibar,Eibar
 SP2,Elche,Elche
 SP2,Eldense,Eldense
+SP2,FC Andorra,Andorra
 SP2,FC Cartagena,Cartagena
 SP2,Girona,Girona
 SP2,Granada CF,Granada
@@ -707,10 +729,12 @@ SP2,Las Palmas,Las Palmas
 SP2,Leganes,Leganes
 SP2,Levante,Levante
 SP2,Malaga,Malaga
+SP2,Mallorca,Mallorca
 SP2,Mirandes,Mirandes
 SP2,Oviedo,Oviedo
 SP2,Racing Ferrol,Ferrol
 SP2,Racing Santander,Santander
+SP2,Real Sociedad II,Sociedad B
 SP2,Sporting Gijon,Sp Gijon
 SP2,Tenerife,Tenerife
 SP2,Valladolid,Valladolid

@@ -9,6 +9,8 @@ Rules (all in settings.json):
   so every match shows once, at its best line
 - BTTS is not here: in 100,000 test matches the model never reached 75% for it (highest 71%)
 - national teams: competitive matches only, 1X2 and Over 1.5 (their Over 2.5 chances were too high in the test)
+- cups: domestic cups 1X2, Over 2.5 and Over 1.5; European cups Over 1.5 only (their 75%+ 1X2 picks were right
+  only 71% in the test, and their Over 2.5 bangers 65%)
 - each acca uses one market only, so the same match is never twice in a slip
 
 The same code runs on the backtest (accuracy_table, acca_table), so the numbers on the page are the
@@ -23,7 +25,7 @@ import pandas as pd
 from scipy.stats import nbinom, poisson
 
 from .betting import EST_MARGIN, slips_from_legs
-from .config import INTL_LEAGUES
+from .config import CUP_LEAGUES, INTL_LEAGUES
 
 MARKETS = {"1X2": "win", "Over 2.5 goals": "over25", "Over 1.5 goals": "over15",
            "Corners over": "corners", "Cards over": "cards", "Shots over": "shots"}
@@ -31,7 +33,11 @@ STATS = {"corners": ("C", "Corners"), "cards": ("K", "Cards"), "shots": ("S", "S
 MIN_LINE = {"corners": 6.5, "cards": 2.5, "shots": 15.5}     # lower lines are hardly offered by bookmakers
 SKIP = {"INT_FRIENDLY", "INT_OTHER"}                          # friendlies: squads change too much
 INTL_MARKETS = {"win", "over15"}
+EUROPEAN_CUPS = {"CUP_UCL", "CUP_UEL", "CUP_UECL"}
+CUP_MARKETS = {"win", "over15", "over25"}                    # domestic cups
+EUROPE_MARKETS = {"over15"}
 ACCA_TAB = "Banger accas"
+MIXED_TAB = "Mixed acca"
 
 
 def _sf(k, mu, alpha):
@@ -87,6 +93,8 @@ def legs(d: pd.DataFrame, s: dict, odds=("odds_h", "odds_d", "odds_a"), over_odd
     min_line = {**MIN_LINE, **(s.get("bangers_min_line") or {})}
     lg = d["league"].astype(str)
     intl = lg.isin(INTL_LEAGUES).to_numpy()
+    euro = lg.isin(EUROPEAN_CUPS).to_numpy()
+    cup = lg.isin(CUP_LEAGUES).to_numpy() & ~euro
     usable = ~lg.isin(SKIP).to_numpy()
     more = d["more_odds"] if "more_odds" in d else pd.Series(None, index=d.index)
     out = []
@@ -95,6 +103,10 @@ def legs(d: pd.DataFrame, s: dict, odds=("odds_h", "odds_d", "odds_a"), over_odd
         ok = ok & usable & ~np.isnan(prob) & (prob >= t)
         if market not in INTL_MARKETS:
             ok &= ~intl
+        if market not in CUP_MARKETS:
+            ok &= ~cup
+        if market not in EUROPE_MARKETS:
+            ok &= ~euro
         if not ok.any():
             return
         price = np.where(np.isnan(price) | (price <= 1), np.nan, price)
@@ -114,7 +126,7 @@ def legs(d: pd.DataFrame, s: dict, odds=("odds_h", "odds_d", "odds_a"), over_odd
 
     over, mk = _col(d, "p_over"), _col(d, "mk_over")
     over = np.where(np.isnan(mk), over, (over + mk) / 2)
-    in_over25 = usable & ~intl & (over >= t)
+    in_over25 = usable & ~intl & ~euro & (over >= t)
     add("over25", np.ones(len(d), bool), "O", over, _col(d, over_odds))
     o15 = np.array([_more_price(m, "goals", 1.5, 0) or np.nan for m in more], float)
     add("over15", ~in_over25, "O15", _col(d, "p_over15"), o15)
@@ -182,6 +194,42 @@ def accas(pred: pd.DataFrame, s: dict) -> dict[str, dict[str, list]]:
             sl = market_slip(g, s)
             if sl:
                 out.setdefault(tab, {})[d] = [{**x, "set": f"{tab} acca"} for x in sl]
+    return out
+
+
+def mixed_slip(b: pd.DataFrame, s: dict) -> list[dict]:
+    """One acca from one day's bangers of every kind: the top mixed_acca_per_market (2) of each market,
+    safest first. A match is used once: if it is top in two markets, it goes where it is safest and the
+    other market takes its next banger."""
+    n = int(s.get("mixed_acca_per_market", 2))
+    b = b[b["odds"] >= float(s.get("acca_leg_min_odds", 1.15))].sort_values("prob", ascending=False, kind="stable")
+    used, count, legs_ = set(), {}, []
+    for i, r in zip(b.index, b.itertuples(index=False)):
+        if i in used or count.get(r.market, 0) >= n:
+            continue
+        used.add(i)
+        count[r.market] = count.get(r.market, 0) + 1
+        legs_.append((i, r.pick, float(r.prob), float(r.odds), bool(r.est), r.market))
+    if len(legs_) < 2:
+        return []
+    order = {m: k for k, m in enumerate(MARKETS.values())}
+    legs_.sort(key=lambda x: (order[x[5]], -x[2]))                 # grouped by kind on the slip
+    return [{"legs": [x[:4] for x in legs_], "odds": float(np.prod([x[3] for x in legs_])),
+             "win_prob": float(np.prod([x[2] for x in legs_])), "est": [x[0] for x in legs_ if x[4]],
+             "markets": [x[5] for x in legs_], "set": MIXED_TAB}]
+
+
+def mixed_accas(pred: pd.DataFrame, s: dict) -> dict[str, list]:
+    """{day: [the mixed acca]}"""
+    b = legs(pred, s)
+    if b.empty:
+        return {}
+    day = pd.to_datetime(pred.loc[b.index, "date_local"]).dt.strftime("%Y-%m-%d")
+    out = {}
+    for d, g in b.groupby(day.to_numpy()):
+        sl = mixed_slip(g, s)
+        if sl:
+            out[d] = sl
     return out
 
 
@@ -272,4 +320,29 @@ def acca_table(bp: pd.DataFrame, more: pd.DataFrame | None, s: dict) -> pd.DataF
                      "Model said": r["chance"].mean(), "Won": r["won"].mean(),
                      "Profit per slip": (np.where(r.loc[real, "won"], r.loc[real, "odds"] - 1, -1)).mean() if real.sum() >= 30 else np.nan,
                      "Real odds slips": int(real.sum())})
+    return pd.DataFrame(rows)
+
+
+def mixed_table(bp: pd.DataFrame, more: pd.DataFrame | None, s: dict, per_market=(1, 2)) -> pd.DataFrame:
+    """The daily mixed acca in the test (clubs): how many legs, total odds, how often every leg won."""
+    d = _backtest_frame(bp, more)
+    b = legs(d, s)
+    b["won"] = _won(d, b)
+    b = b[b["won"].notna()]
+    won = {(i, m): w for i, m, w in zip(b.index, b["market"], b["won"])}      # a match has one row per market
+    day = pd.to_datetime(d.loc[b.index, "date"]).dt.strftime("%Y-%m-%d").to_numpy()
+    rows = []
+    for n in per_market:
+        res = []
+        for _, x in b.groupby(day):
+            for sl in mixed_slip(x, {**s, "mixed_acca_per_market": n}):
+                w = [won[(leg[0], m)] for leg, m in zip(sl["legs"], sl["markets"])]
+                res.append((all(v == 1 for v in w), sl["odds"], sl["win_prob"], len(w), len(sl["est"]) == 0,
+                            sum(v == 0 for v in w)))
+        if not res:
+            continue
+        r = pd.DataFrame(res, columns=["won", "odds", "chance", "legs", "real", "lost_legs"])
+        rows.append({"Mixed acca": f"top {n} of each kind", "Slips": len(r), "Legs (avg)": r["legs"].mean(),
+                     "Odds (avg)": r["odds"].mean(), "Model said": r["chance"].mean(), "Won": r["won"].mean(),
+                     "Only 1 leg lost": (r["lost_legs"] == 1).mean(), "Legs right": 1 - r["lost_legs"].sum() / r["legs"].sum()})
     return pd.DataFrame(rows)
