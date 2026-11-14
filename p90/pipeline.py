@@ -607,14 +607,16 @@ NOTES = [
 def export_excel(out: dict):
     """The Excel file and the HTML page, from the same tables."""
     sheets = tables(out)
+    title = str(out["settings"].get("page_title") or "PrincePredict")
+    notes = [NOTES[0].replace("PREDICT/90", title)] + NOTES[1:]
     path = OUTPUT / f"predictions_{date.today():%Y-%m-%d}.xlsx"
     try:
-        report.write_predictions(path, sheets, NOTES)
+        report.write_predictions(path, sheets, notes)
     except PermissionError:
         path = OUTPUT / f"predictions_{datetime.now():%Y-%m-%d_%H%M}.xlsx"
-        report.write_predictions(path, sheets, NOTES)
+        report.write_predictions(path, sheets, notes)
     out["page"] = path.with_suffix(".html")
-    webpage.write(out["page"], sheets, NOTES, simple=bool(out["settings"].get("simple_page", True)))
+    webpage.write(out["page"], sheets, notes, simple=bool(out["settings"].get("simple_page", True)), title=title)
     return path
 
 

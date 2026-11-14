@@ -139,6 +139,7 @@ DEFAULTS = {
     "bangers_acca_min_odds": 2.0,
     "bangers_acca_max_odds": 3.0,
     "simple_page": True,
+    "page_title": "PrincePredict",
     "mixed_acca_per_market": 2,
     "one_slip_per_match": True,
     "cups": True,

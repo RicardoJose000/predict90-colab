@@ -1,7 +1,9 @@
 """The results as one HTML page: works offline, on a PC or a phone. Same tables as the Excel file."""
 from __future__ import annotations
 
+import html
 import json
+import re
 from datetime import datetime
 
 import numpy as np
@@ -91,19 +93,27 @@ def _sheet(name: str, df: pd.DataFrame) -> dict:
 MAIN_GROUPS = ("My picks", "Bangers", "Mixed acca", "All predictions")    # the simple page: the rest is behind "More"
 
 
-def write(path, sheets: dict[str, pd.DataFrame], notes: list[str], simple: bool = True) -> None:
+def _brand(title: str) -> str:
+    """The name at the top of the page, second part in colour: PrincePredict -> Prince<b>Predict</b>, PREDICT/90 -> PREDICT<b>/90</b>."""
+    t = title.strip() or "PrincePredict"
+    m = re.match(r"^(.+?)(/.*)$", t) or re.match(r"^(.+?[a-z])([A-Z].*)$", t)
+    return f"{html.escape(m[1])}<b>{html.escape(m[2])}</b>" if m else html.escape(t)
+
+
+def write(path, sheets: dict[str, pd.DataFrame], notes: list[str], simple: bool = True, title: str = "PrincePredict") -> None:
     data = {"updated": f"{datetime.now():%a %d %b %Y, %H:%M}", "notes": notes, "intro": INTRO,
             "groups": [{"name": g, "tabs": [_sheet(n, sheets[n]) for n in names if n in sheets]} for g, names in GROUPS]}
     data["groups"] = [g for g in data["groups"] if g["tabs"]]
     data["main"] = sum(g["name"] in MAIN_GROUPS for g in data["groups"]) if simple else len(data["groups"])
     blob = json.dumps(data, ensure_ascii=False, allow_nan=False).replace("</", "<\\/")
-    path.write_text(PAGE.replace("__DATA__", blob), encoding="utf-8")
+    page = PAGE.replace("__TITLE__", html.escape(title.strip() or "PrincePredict")).replace("__BRAND__", _brand(title))
+    path.write_text(page.replace("__DATA__", blob), encoding="utf-8")
 
 
 PAGE = r"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PREDICT/90 Results</title>
+<title>__TITLE__</title>
 <style>
 :root{--bg:#06080b;--panel:#10151c;--panel2:#161c25;--line:rgba(255,255,255,.1);--ink:#eef2ee;--ink2:#b7c0bb;--ink3:#8a948e;--lime:#c8f53c;--dim:rgba(200,245,60,.14);--gold:#f5c542;--mono:ui-monospace,Consolas,monospace;color-scheme:dark}
 *{box-sizing:border-box;margin:0}
@@ -153,7 +163,7 @@ td.hi{color:var(--lime);font-weight:600}
 .notes{max-width:820px;color:var(--ink2)}.notes p{margin:0 0 7px}.notes h2{color:var(--ink);font-size:15px;margin:16px 0 6px}.notes h2:first-child{margin-top:0}
 footer{max-width:1320px;margin:6px auto 0;padding:0 16px;color:var(--ink3);font-size:13px}
 </style></head><body>
-<header><h1>PREDICT<b>/90</b></h1><span class="stamp" id="stamp"></span></header>
+<header><h1>__BRAND__</h1><span class="stamp" id="stamp"></span></header>
 <nav aria-label="Sections"><div class="bar" id="groups"></div><div class="bar" id="tabs"></div></nav>
 <main>
 <div class="filters" id="filters">
