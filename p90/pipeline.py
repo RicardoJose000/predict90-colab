@@ -493,7 +493,12 @@ def tables(out: dict) -> dict[str, pd.DataFrame]:
     by_market = out.get("market_accas", {})
     days = sorted({d for v in by_market.values() for d in v})
     market_slips = {d: [sl for v in by_market.values() for sl in v.get(d, [])] for d in days}
-    sheets = {"My picks": slip_sheet(out["my_picks"]),
+    # My picks also shows the banger acca of every other market (the same slips as the Banger accas sheet,
+    # so they are not counted twice in the tracker): 1X2 accas first, then Over 2.5, Over 1.5, corners, cards, shots
+    extra = [t for t in bangers.MARKETS if t != "1X2"] if s.get("my_picks_markets", True) else []
+    mine = {d: list(out["my_picks"].get(d, [])) + [sl for t in extra for sl in by_market.get(t, {}).get(d, [])]
+            for d in sorted(set(out["my_picks"]) | {d for t in extra for d in by_market.get(t, {})})}
+    sheets = {"My picks": slip_sheet({d: v for d, v in mine.items() if v}),
               **bangers.tables(pred, s, league_label, _league_type, betting.pick_name),
               bangers.ACCA_TAB: slip_sheet(market_slips),
               bangers.MIXED_TAB: slip_sheet(out.get("mixed_accas", {})),
@@ -538,6 +543,7 @@ NOTES = [
     "Same small stake on every slip, at most 1% of your bankroll. I would skip weak picks, the main acca, other leagues in accas, and the other acca until your tracker shows it works.",
     "This exact rule in the 9 season test: 949 slips on about 1 day in 3, 28.0% of slips won, +1.7% at average odds, -0.3% at Bet365, range -9.8% to +13.5%. So about break-even: not a sure profit. Expect losing runs: up to 18 long slips or 10 safer slips in a row.",
     "National teams: competitive matches (no friendlies) can be in My picks, the strong and the banger acca too. Their accuracy is tested (79% for 65%+ picks), their profit is not: no old odds for national teams.",
+    "Other markets: under the 1X2 accas, My picks also shows one acca per market from the bangers (Over 2.5, Over 1.5, corners, cards, shots), total odds about 2 to 3. They are the same slips as the Banger accas sheet. In the test all legs won on 30-37% of slips. Corners, cards and shots odds are mostly estimates: check the real price (my_picks_markets in settings.json).",
     "",
     "BANGERS (the safest pick of each kind)",
     "1X2, Over 2.5, Over 1.5, Corners over, Cards over, Shots over: only picks that are 75%+ (bangers_min_prob in settings.json).",
