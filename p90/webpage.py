@@ -165,6 +165,8 @@ footer{max-width:1320px;margin:6px auto 0;padding:0 16px;color:var(--ink3);font-
 <footer>These are chances, not guarantees. Bet only what you can afford to lose. All columns are in the Excel file.</footer>
 <script id="d" type="application/json">__DATA__</script>
 <script>
+/* everything inside a function: the page also works when it is opened by another page (the password lock) */
+(function(){
 var D=JSON.parse(document.getElementById("d").textContent),$=function(i){return document.getElementById(i)};
 var S={g:0,t:0,sort:null,up:false,day:"",type:"",league:"",text:"",more:false};
 function el(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
@@ -229,5 +231,6 @@ function draw(){drawNav();var box=$("view");box.textContent="";
 ["fDay","fType","fLeague"].forEach(function(i,k){$(i).onchange=function(){S[["day","type","league"][k]]=this.value;draw()}});
 $("fText").oninput=function(){S.text=this.value;var box=$("view");box.textContent="";drawTable(tab(),box)};
 $("stamp").textContent="Updated "+D.updated;draw();
+})();
 </script></body></html>
 """
