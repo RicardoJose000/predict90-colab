@@ -89,7 +89,7 @@ def upcoming_matches(results: pd.DataFrame, s: dict, verbose=True) -> tuple[pd.D
         else:
             fx = fd
         info = {"api": "on", "requests_used": api.used, "requests_left": api.remaining}
-        log(f"  API-Football requests used now: {api.used}" + (", daily limit reached" if api.limit_reached else f", left today: {api.remaining}" if api.remaining else " (all from saved copies)"), verbose)
+        log(f"  API-Football requests used now: {api.used}" + (f", daily limit reached, {api.stale_used} older saved answers used" if api.limit_reached else f", left today: {api.remaining}" if api.remaining else " (all from saved copies)"), verbose)
     else:
         fx = fd
         if s.get("use_api_football") and not api.ok:

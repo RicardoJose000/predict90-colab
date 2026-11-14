@@ -33,18 +33,29 @@ class ApiFootball:
         self.used = 0
         self._last = 0.0
         self.limit_reached = False
+        self.stale_used = 0
 
     @property
     def ok(self) -> bool:
         return bool(self.key)
 
+    STALE_HOURS = 36      # daily limit reached or API down: an older saved answer is better than nothing
+
     def get(self, endpoint: str, params: dict, max_age_hours: float = 3.0) -> dict | None:
         name = endpoint.replace("/", "_") + "_" + "_".join(f"{k}-{v}" for k, v in sorted(params.items()))
         path = API_CACHE / f"{re.sub(r'[^A-Za-z0-9_.-]', '', name)}.json"
-        if path.exists() and (time.time() - path.stat().st_mtime) / 3600 < max_age_hours:
+        age = (time.time() - path.stat().st_mtime) / 3600 if path.exists() else None
+        if age is not None and age < max_age_hours:
             return json.loads(path.read_text(encoding="utf-8"))
-        if not self.ok or self.limit_reached:
+
+        def stale():
+            if endpoint != "status" and age is not None and age < max(self.STALE_HOURS, max_age_hours):
+                self.stale_used += 1
+                return json.loads(path.read_text(encoding="utf-8"))
             return None
+
+        if not self.ok or self.limit_reached:
+            return stale()
         for attempt in range(2):
             wait = self._last + 6.5 - time.time()          # free plan: max 10 requests a minute
             if wait > 0:
@@ -58,7 +69,7 @@ class ApiFootball:
             except Exception as e:
                 if self.verbose:
                     print(f"  ! API-Football {endpoint}: {e}")
-                return None
+                return stale()
             errs = data.get("errors")
             if errs and "rateLimit" in str(errs) and "daily" in str(errs).lower():
                 errs = {"requests": "daily limit"}
@@ -71,8 +82,8 @@ class ApiFootball:
             if isinstance(errs, dict) and "requests" in errs:
                 self.limit_reached = True
                 if self.verbose:
-                    print("  ! API-Football daily limit reached: some odds and injuries are missing today")
-                return None
+                    print("  ! API-Football daily limit reached: using the answers saved by the last runs (up to 36 hours old)")
+                return stale()
             if self.verbose:
                 msg = errs.get("requests") or errs.get("plan") or errs if isinstance(errs, dict) else errs
                 print(f"  ! API-Football {endpoint}: {msg}")
