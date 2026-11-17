@@ -543,7 +543,7 @@ NOTES = [
     "Same small stake on every slip, at most 1% of your bankroll. I would skip weak picks, the main acca, other leagues in accas, and the other acca until your tracker shows it works.",
     "This exact rule in the 9 season test: 949 slips on about 1 day in 3, 28.0% of slips won, +1.7% at average odds, -0.3% at Bet365, range -9.8% to +13.5%. So about break-even: not a sure profit. Expect losing runs: up to 18 long slips or 10 safer slips in a row.",
     "National teams: competitive matches (no friendlies) can be in My picks, the strong and the banger acca too. Their accuracy is tested (79% for 65%+ picks), their profit is not: no old odds for national teams.",
-    "Other markets: under the 1X2 accas, My picks also shows one acca per market from the bangers (Over 2.5, Over 1.5, corners, cards, shots), total odds about 2 to 3. They are the same slips as the Banger accas sheet. In the test all legs won on 30-37% of slips. Corners, cards and shots odds are mostly estimates: check the real price (my_picks_markets in settings.json).",
+    "Other markets: under the 1X2 accas, My picks also shows one acca per market from the bangers (Over 2.5, Over 1.5, corners, cards, shots), total odds about 2 to 3. They are the same slips as the Banger accas sheet. In the test all legs won on 30-37% of slips. Corners odds are real Bet365 prices in most matches; cards and shots are mostly estimates: check those prices (my_picks_markets in settings.json).",
     "",
     "BANGERS (the safest pick of each kind)",
     "1X2, Over 2.5, Over 1.5, Corners over, Cards over, Shots over: only picks that are 75%+ (bangers_min_prob in settings.json).",
@@ -554,12 +554,12 @@ NOTES = [
     "Cups: domestic cups in 1X2 (82% in the test), Over 2.5 and Over 1.5. European cups only in Over 1.5: their 75%+ 1X2 picks were right only 71% in the test.",
     "BANGER ACCAS: one acca per market and day, from that market's bangers only, total odds about 2 to 3 (bangers_acca_min_odds / max_odds). One market per slip, so the same match is never twice in a slip.",
     "In the test all legs won in 42% (1X2), 33% (Over 1.5), 30% (corners), 37% (cards), 36% (shots) of slips. At real old odds the 1X2 acca lost about 8% per slip (the bookmaker margin); the others have no old odds, so profit is not tested. Part 5c of the notebook has the tables.",
-    "Odds = Bet365 when API-Football has that line, otherwise an estimate (our chance + a normal margin): check the price at your bookmaker.",
+    "Odds = Bet365 when API-Football has that line, otherwise an estimate (our chance + a normal margin): check the price at your bookmaker. Corners also use the Bet365 3-way corners market (Over 7 there = 8 or more = Over 7.5, the same price), which has every line, so most corners picks have a real price. Legs paying under 1.15 are left out of the accas.",
     "The page shows My picks, Bangers, Mixed acca and All predictions first. Press More for everything else (simple_page: false shows all at once). The Excel file always has every sheet.",
     "",
     "MIXED ACCA",
     "One acca a day from the bangers of every kind: the top 2 of 1X2, Over 2.5, Over 1.5, corners, cards and shots (mixed_acca_per_market in settings.json: 1 = shorter and safer). Safest first. Every match only once: a match that is top in two kinds goes where it is safest, and the other kind takes its next banger.",
-    "Test on 9 seasons (clubs): 2,075 days, on average 7.6 legs at about 3.8 total odds. Every leg won on 22% of days (the model said 22%), on another 32% only one leg lost. Top 1 of each kind: 4.4 legs, about 2.1 odds, won 38%. Most corners, cards and shots prices are estimates, so profit is not tested."
+    "Test on 9 seasons (clubs): 2,075 days, on average 7.6 legs at about 3.8 total odds. Every leg won on 22% of days (the model said 22%), on another 32% only one leg lost. Top 1 of each kind: 4.4 legs, about 2.1 odds, won 38%. Corners now have real Bet365 prices in most matches; cards and shots are mostly estimates. Profit is not tested: old corners odds don't exist."
     "",
     "ONE SLIP PER MATCH",
     "A match goes into one acca only, across all acca sheets (one_slip_per_match in settings.json). So one bad result, like a favourite that draws, can only hurt one slip. The order: My picks first, then Mixed acca, Banger accas, Cup acca, International acca, Strong, Banger, Main, Other: each takes the best matches that are still free.",

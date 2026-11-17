@@ -289,9 +289,26 @@ def _half_lines(vals: dict) -> dict:
     return out
 
 
+def _three_way_overs(vals: dict) -> dict:
+    """Total Corners (3 way): "Over 7" means 8 or more, the same bet as Over 7.5. Checked on 302 lines that
+    Bet365 also prices both ways: the same odds (median ratio 1.00). {7.5: (over odds, None)}"""
+    out = {}
+    for k, over in vals.items():
+        if k.startswith("Over "):
+            try:
+                n = float(k[5:])
+            except ValueError:
+                continue
+            if n % 1 == 0:
+                out[n + 0.5] = (over, None)
+    return out
+
+
 def _parse_more(bet_id: int, vals: dict, more: dict) -> None:
     if bet_id in MORE_LINES:
         more[MORE_LINES[bet_id]] = _half_lines(vals)
+    elif bet_id == 85:                                 # Total Corners (3 way): every line from 2 to 16
+        more["corners_3way"] = _three_way_overs(vals)
     elif bet_id == 27:                                 # clean sheet home: yes / no
         more["cs_home"] = (vals.get("Yes"), vals.get("No"))
     elif bet_id == 28:

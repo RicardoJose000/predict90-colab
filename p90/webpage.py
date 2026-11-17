@@ -13,7 +13,7 @@ INTRO = {"My picks": [
     "My own recommendation: 1 long acca around 5 odds and up to 2 safer accas around 2.3 odds, only when the model has them. No match is used twice. Same small stake on every slip, at most 1% of your bankroll.",
     "This exact rule in the 9 season test: 28.0% of slips won, +1.7% at average odds, -0.3% at Bet365, range -9.8% to +13.5%. So about break-even, not a sure profit. Expect losing runs: up to 18 long slips or 10 safer slips in a row.",
     "I would skip: weak picks, the main acca, other leagues in accas, and the other acca until your tracker shows it works.",
-    "Other markets: below the 1X2 accas you get one acca per market from the bangers (Over 2.5, Over 1.5, corners, cards, shots), total odds about 2 to 3, the same slips as Bangers > Banger accas. In the test all legs won on 30-37% of slips. Corners, cards and shots odds are mostly estimates: check the real price.",
+    "Other markets: below the 1X2 accas you get one acca per market from the bangers (Over 2.5, Over 1.5, corners, cards, shots), total odds about 2 to 3, the same slips as Bangers > Banger accas. In the test all legs won on 30-37% of slips. Corners odds are real Bet365 prices in most matches now; cards and shots are mostly estimates: check those prices.",
     "One slip per match: a match goes into one acca only, across all acca sheets, so one bad result can only hurt one slip (one_slip_per_match in settings.json).",
     "National teams: competitive matches (no friendlies) can be in My picks, the strong and the banger acca too. Their accuracy is tested (79% for 65%+ picks), their profit is not: no old odds for national teams.",
     "Cups: cup matches can be in them too (cups_in_picks in settings.json). Accuracy tested (65%+ picks: 78% domestic, 69% European), profit not.",
@@ -31,7 +31,7 @@ INTRO = {"My picks": [
     "75%+, only matches that are not already in Over 2.5. Test: right 80%, lowest season 79%. National teams: 81%. Cups: 81%.",
 ], "Corners over": [
     "Every match once, at its highest line that is still 75%+ (never below 6.5). Test: right 79%, lowest season 76%.",
-    "Odds = Bet365 when that line has a price, otherwise an estimate: check the price at your bookmaker.",
+    "Odds = Bet365 when that line has a price, otherwise an estimate: check the price at your bookmaker. Corners also use the Bet365 3-way corners market, which has every line, so most corners picks have a real price.",
 ], "Cards over": [
     "Every match once, at its highest line that is still 75%+ (never below 2.5). Test: right 82%, lowest season 79%. Cards = yellow + red: bookmakers count them in different ways, check the rules.",
 ], "Shots over": [
@@ -43,7 +43,7 @@ INTRO = {"My picks": [
 ], "Mixed acca": [
     "One acca a day from the bangers of every kind: the top 2 of 1X2, Over 2.5, Over 1.5, corners, cards and shots (mixed_acca_per_market in settings.json, 1 = shorter and safer). Safest first, every match only once: a match that is top in two kinds goes where it is safest.",
     "Test on 9 seasons (clubs): 2,075 days, on average 7.6 legs at about 3.8 total odds. Every leg won on 22% of days (the model said 22%), and on another 32% only one leg lost. Top 1 of each kind: 4.4 legs, about 2.1 odds, won 38%.",
-    "Most corners, cards and shots prices are estimates, so profit can't be tested: check the real total odds at your bookmaker.",
+    "Corners: real Bet365 prices in most matches. Cards and shots: mostly estimates, so check the real total odds at your bookmaker. Legs paying under 1.15 are left out of the accas.",
 ], "All predictions": [
     "Every match of today and tomorrow: leagues, cups and national teams. Nothing is lost: what is not in a list or an acca is still here. Use the filter box to find a team or a league.",
 ], "Cups": [

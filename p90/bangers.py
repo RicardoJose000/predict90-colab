@@ -84,6 +84,49 @@ def _more_price(more, *path):
     return v
 
 
+def _real_price(more, stat: str, line: float) -> float:
+    """Bet365 price of over `line`. Corners: the normal over/under market, else the 3-way corners market,
+    which has every line (so the low banger lines like 7.5 get a real price too). A price of 1.00 means the
+    bookmaker hardly pays anything: it stays real (1.01), so the leg is too short for an acca, not an estimate."""
+    p = _more_price(more, f"{stat}_total", line, 0)
+    if not p and stat == "corners":
+        p = _more_price(more, "corners_3way", line, 0)
+    if not p:
+        return np.nan
+    return max(float(p), 1.01)
+
+
+def _guess(prob, guess):
+    """Estimated price: worked out from Bet365's nearest line when there is one, else our chance + a normal margin."""
+    ours = 1 / (prob * EST_MARGIN)
+    return ours if guess is None else np.where(np.isnan(guess), ours, guess)
+
+
+def _from_market(more, stat: str, line: float, alpha: float) -> float:
+    """Price of over `line` worked out from Bet365's own over/under line nearest to it, for when Bet365 has
+    no price at our line (cards and shots: Bet365 mostly offers higher lines than our safe banger lines).
+    The bookmaker's over/under price says how many it expects; with our spread that gives its chance at
+    our line, plus its own margin. Still marked as an estimate, but it is the bookmaker's view, not ours."""
+    lines = _more_price(more, f"{stat}_total")
+    if not isinstance(lines, dict) or not lines or not alpha == alpha:
+        return np.nan
+    near = min(lines, key=lambda x: abs(float(x) - line))
+    over, under = (lines[near] + (None, None))[:2] if isinstance(lines[near], (tuple, list)) else (None, None)
+    if not over or not under or float(over) <= 1 or float(under) <= 1:
+        return np.nan
+    book = 1 / float(over) + 1 / float(under)
+    p_over = (1 / float(over)) / book
+    lo, hi = 0.01, 300.0                                   # the expected number that gives the bookmaker's chance
+    for _ in range(60):
+        mid = (lo + hi) / 2
+        if float(_sf(math.floor(float(near)), mid, alpha)) < p_over:
+            lo = mid
+        else:
+            hi = mid
+    q = float(_sf(math.floor(line), (lo + hi) / 2, alpha))
+    return max(1 / (q * book), 1.01) if q > 0 else np.nan
+
+
 def legs(d: pd.DataFrame, s: dict, odds=("odds_h", "odds_d", "odds_a"), over_odds="o_over") -> pd.DataFrame:
     """Every banger, one row per match and market: market, pick, prob, odds, est (made-up price), line, expected.
 
@@ -99,7 +142,7 @@ def legs(d: pd.DataFrame, s: dict, odds=("odds_h", "odds_d", "odds_a"), over_odd
     more = d["more_odds"] if "more_odds" in d else pd.Series(None, index=d.index)
     out = []
 
-    def add(market, ok, pick, prob, price, line=np.nan, expected=np.nan):
+    def add(market, ok, pick, prob, price, line=np.nan, expected=np.nan, guess=None):
         ok = ok & usable & ~np.isnan(prob) & (prob >= t)
         if market not in INTL_MARKETS:
             ok &= ~intl
@@ -113,7 +156,7 @@ def legs(d: pd.DataFrame, s: dict, odds=("odds_h", "odds_d", "odds_a"), over_odd
         est = np.isnan(price)
         out.append(pd.DataFrame({
             "market": market, "pick": np.asarray(pick, dtype=object)[ok] if np.ndim(pick) else pick,
-            "prob": prob[ok], "odds": np.where(est, 1 / (prob * EST_MARGIN), price)[ok], "est": est[ok],
+            "prob": prob[ok], "odds": np.where(est, _guess(prob, guess), price)[ok], "est": est[ok],
             "line": np.broadcast_to(line, len(d))[ok], "expected": np.broadcast_to(expected, len(d))[ok]},
             index=d.index[ok]))
 
@@ -139,10 +182,11 @@ def legs(d: pd.DataFrame, s: dict, odds=("odds_h", "odds_d", "odds_a"), over_odd
                 known &= d[c].notna().to_numpy()
         mu = np.where(known, mu, np.nan)
         line, chance = safest_line(mu, alpha, t, float(min_line[stat]))
-        price = np.array([(_more_price(m, f"{stat}_total", ln, 0) or np.nan) if ln == ln else np.nan
-                          for m, ln in zip(more, line)], float)
+        price = np.array([_real_price(m, stat, ln) if ln == ln else np.nan for m, ln in zip(more, line)], float)
+        guess = np.array([_from_market(m, stat, ln, a) if ln == ln and p != p else np.nan
+                          for m, ln, a, p in zip(more, line, alpha, price)], float)
         picks = np.array([f"{code}:T:O:{ln}" if ln == ln else "" for ln in line], dtype=object)
-        add(stat, ~np.isnan(line), picks, chance, price, line, mu)
+        add(stat, ~np.isnan(line), picks, chance, price, line, mu, guess)
 
     if not out:
         return pd.DataFrame(columns=["market", "pick", "prob", "odds", "est", "line", "expected"])
