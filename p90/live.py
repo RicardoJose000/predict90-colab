@@ -319,6 +319,7 @@ def _parse_more(bet_id: int, vals: dict, more: dict) -> None:
         # Checked on real odds: home favourite at 1.25, "Home -1.5" 1.68, "Away -1.5" 2.15.
         more["away_plus15"] = (vals.get("Away -1.5"), vals.get("Home -1.5"))     # (underdog away +1.5, other side)
         more["home_plus15"] = (vals.get("Home +1.5"), vals.get("Away +1.5"))     # (underdog home +1.5, other side)
+        more["ah"] = dict(vals)                        # every line, for the Underdog handicap tab
 
 
 def api_odds(api: ApiFootball, days: list[date], fixture_ids: list, per_match_budget: int = 30) -> dict:

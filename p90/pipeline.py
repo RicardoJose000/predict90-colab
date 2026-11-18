@@ -15,7 +15,7 @@ import joblib
 import numpy as np
 import pandas as pd
 
-from . import bangers, betting, cups, data, evaluate, intl, live, props, report, tracker, webpage
+from . import bangers, betting, cups, data, evaluate, intl, live, props, report, tracker, underdog, webpage
 from .backtest import fit_all, past_warmup, predict_all, walk_forward
 from .config import CUP_LEAGUES, DATA, INTL_LEAGUES, LEAGUES, MAIN_LEAGUES, MODELS, OUTPUT, ROOT, current_season_start, league_label, load_settings
 from .config import league_type as _league_type
@@ -500,6 +500,7 @@ def tables(out: dict) -> dict[str, pd.DataFrame]:
             for d in sorted(set(out["my_picks"]) | {d for t in extra for d in by_market.get(t, {})})}
     sheets = {"My picks": slip_sheet({d: v for d, v in mine.items() if v}),
               **bangers.tables(pred, s, league_label, _league_type, betting.pick_name),
+              underdog.TAB: underdog.table(pred, s, league_label, league_type),
               bangers.ACCA_TAB: slip_sheet(market_slips),
               bangers.MIXED_TAB: slip_sheet(out.get("mixed_accas", {})),
               "All predictions": base, "Bangers": group("BANGER"), "Strong": group("STRONG"),
@@ -550,6 +551,8 @@ NOTES = [
     "Over 2.5 uses half our chance, half the bookmaker's. A match in Over 2.5 is not shown again in Over 1.5.",
     "Corners and cards: one line for every match, the lines the bookmakers sell (bangers_lines: over 8.5 corners, over 3.5 cards). Corners also shows the over 7.5 chance and odds: play over 7.5 for a safer leg. Shots: every match once, at its highest line that is still 75%+ (never below 15.5).",
     "Test on 9 seasons, each predicted only with the seasons before it: right 1X2 81%, Over 2.5 73%, Over 8.5 corners 71% (the same picks as over 7.5: 81%), Over 3.5 cards 80%, Over 1.5 80%, shots 78%. Lowest season 68-79%. National teams: 1X2 86%, Over 1.5 81% (competitive matches only, no Over 2.5).",
+    "UNDERDOG HANDICAP: every match with a big favourite (60%+, underdog_fav_min_prob), the underdog's smallest line that is still 80%+ (underdog_min_prob): the best price at that safety. Underdog +3.5 loses only if the favourite wins by 4+ (the same bet as +4 on a 3-way handicap, 4:0 on Sportybet). Also the chance of +1.5 up to +5.5, to choose your own line. Good as a hedge against a big favourite.",
+    "Test: clubs 9 seasons, about 8 picks a day, right 88% (the model said 86%), lowest season 85%. National teams (competitive matches): right 87%. No friendlies. Odds = Bet365 Asian handicap when it has that line, otherwise an estimate. No old handicap odds, so profit is not tested.",
     "No BTTS bangers: in 100,000 test matches the model never reached 75% for BTTS (highest 71%).",
     "Cups: domestic cups in 1X2 (82% in the test), Over 2.5 and Over 1.5. European cups only in Over 1.5: their 75%+ 1X2 picks were right only 71% in the test.",
     "BANGER ACCAS: one acca per market and day, from that market's bangers only, total odds about 2 to 3 (bangers_acca_min_odds / max_odds). One market per slip, so the same match is never twice in a slip.",

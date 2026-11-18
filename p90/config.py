@@ -138,6 +138,8 @@ DEFAULTS = {
     "bangers_min_line": {"corners": 6.5, "cards": 2.5, "shots": 15.5},
     "bangers_lines": {"corners": 8.5, "cards": 3.5},
     "bangers_min_prob_by_market": {"over25": 0.70, "corners": 0.70},
+    "underdog_fav_min_prob": 0.60,
+    "underdog_min_prob": 0.80,
     "bangers_acca_min_odds": 2.0,
     "bangers_acca_max_odds": 3.0,
     "simple_page": True,

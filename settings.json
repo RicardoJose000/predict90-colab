@@ -32,6 +32,8 @@
     "over25": 0.7,
     "corners": 0.7
   },
+  "underdog_fav_min_prob": 0.6,
+  "underdog_min_prob": 0.8,
   "bangers_acca_min_odds": 2.0,
   "bangers_acca_max_odds": 3.0,
   "simple_page": true,
@@ -87,6 +89,8 @@
     "bangers_min_line": "Bangers tab: shots (and corners/cards without a fixed line) never go below these lines (lower lines are hardly offered by bookmakers)",
     "bangers_lines": "Bangers: corners and cards at one fixed line for every match (over 8.5 corners, over 3.5 cards). 0 = the highest line that is still 75%+ instead",
     "bangers_min_prob_by_market": "Bangers: own minimum chance for some markets. Over 2.5 and over 8.5 corners 0.70 (at 0.75 there are hardly any). Test: over 2.5 70%+ right 73%, over 8.5 corners 70%+ right 71% (played as over 7.5: 81%), over 3.5 cards 75%+ right 80%",
+    "underdog_fav_min_prob": "Underdog handicap tab: only matches where the favourite has at least this chance to win",
+    "underdog_min_prob": "Underdog handicap tab: the smallest underdog line (+1.5 up to +5.5) with at least this chance. Test at 0.80: right 88% (clubs), 87% (national teams). 0.85 = safer lines, lower odds (right 92%)",
     "bangers_acca_min_odds": "banger accas (one per market and day): a slip is finished when its total odds reach this",
     "bangers_acca_max_odds": "banger accas: a slip never goes above these total odds",
     "page_title": "the name on top of the results page and in the browser tab",

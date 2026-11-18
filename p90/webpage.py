@@ -43,6 +43,10 @@ INTRO = {"My picks": [
     "Every match once, at its highest line that is still 75%+ (never below 2.5). Test: right 82%, lowest season 79%. Cards = yellow + red: bookmakers count them in different ways, check the rules.",
 ], "Shots over": [
     "Every match once, at its highest line that is still 75%+ (never below 15.5). Test: right 78%, lowest season 76%.",
+], "Underdog handicap": [
+    "Every match with a big favourite (60%+): the underdog's smallest line that is still 80%+, the best price at that safety. Underdog +3.5 loses only if the favourite wins by 4 or more: the same bet as +4 on the 3-way handicap (4:0 on Sportybet).",
+    "The +1.5 % to +5.5 % columns: the chance of every line, so you can pick your own. Good as a hedge against a big favourite. Biggest favourites first.",
+    "Test: clubs 9 seasons, about 8 picks a day, right 88% (the model said 86%), lowest season 85%. National teams (competitive matches): right 87%. No friendlies. Odds = Bet365 Asian handicap when it has that line, otherwise an estimate: check your bookmaker. Profit not tested: no old handicap odds.",
 ], "Banger accas": [
     "One acca per market and day, only from that market's bangers, total odds about 2 to 3. One market per slip, so the same match is never twice in a slip.",
     "Test, share of slips where all legs won: 1X2 42%, Over 2.5 39%, over 8.5 corners 33%, over 3.5 cards 36%, shots 36% (the model said 45, 40, 36, 35, 33%). No Over 1.5 accas: the odds are too short. At real old odds the 1X2 acca lost about 8% per slip: that is the bookmaker margin. The others have no old odds, so their profit is not tested. Keep stakes small.",
@@ -62,7 +66,7 @@ INTRO = {"My picks": [
 ]}
 GROUPS = [
     ("My picks", ["My picks"]),
-    ("Bangers", ["1X2", "Over 2.5 goals", "*corners", "*cards", "Banger accas"]),     # *: Over 8.5 corners / Over 3.5 cards (bangers_lines)
+    ("Bangers", ["1X2", "Over 2.5 goals", "*corners", "*cards", "Underdog handicap", "Banger accas"]),     # *: Over 8.5 corners / Over 3.5 cards (bangers_lines)
     ("Mixed acca", ["Mixed acca"]),
     ("All predictions", ["All predictions"]),
     ("Predictions", ["Bangers", "Strong", "Weak", "Cups", "Internationals", "Value bets"]),
