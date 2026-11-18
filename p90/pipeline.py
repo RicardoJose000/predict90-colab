@@ -493,9 +493,9 @@ def tables(out: dict) -> dict[str, pd.DataFrame]:
     by_market = out.get("market_accas", {})
     days = sorted({d for v in by_market.values() for d in v})
     market_slips = {d: [sl for v in by_market.values() for sl in v.get(d, [])] for d in days}
-    # My picks also shows the banger acca of every other market (the same slips as the Banger accas sheet,
-    # so they are not counted twice in the tracker): 1X2 accas first, then Over 2.5, Over 1.5, corners, cards, shots
-    extra = [t for t in bangers.MARKETS if t != "1X2"] if s.get("my_picks_markets", True) else []
+    # My picks also shows the banger acca of the other main markets (the same slips as the Banger accas sheet,
+    # so they are not counted twice in the tracker): 1X2 accas first, then Over 2.5, Over 8.5 corners, Over 3.5 cards
+    extra = [t for t, m in bangers.markets(s).items() if m in bangers.MAIN and m != "win"] if s.get("my_picks_markets", True) else []
     mine = {d: list(out["my_picks"].get(d, [])) + [sl for t in extra for sl in by_market.get(t, {}).get(d, [])]
             for d in sorted(set(out["my_picks"]) | {d for t in extra for d in by_market.get(t, {})})}
     sheets = {"My picks": slip_sheet({d: v for d, v in mine.items() if v}),
@@ -543,23 +543,23 @@ NOTES = [
     "Same small stake on every slip, at most 1% of your bankroll. I would skip weak picks, the main acca, other leagues in accas, and the other acca until your tracker shows it works.",
     "This exact rule in the 9 season test: 949 slips on about 1 day in 3, 28.0% of slips won, +1.7% at average odds, -0.3% at Bet365, range -9.8% to +13.5%. So about break-even: not a sure profit. Expect losing runs: up to 18 long slips or 10 safer slips in a row.",
     "National teams: competitive matches (no friendlies) can be in My picks, the strong and the banger acca too. Their accuracy is tested (79% for 65%+ picks), their profit is not: no old odds for national teams.",
-    "Other markets: under the 1X2 accas, My picks also shows one acca per market from the bangers (Over 2.5, Over 1.5, corners, cards, shots), total odds about 2 to 3. They are the same slips as the Banger accas sheet. In the test all legs won on 30-37% of slips. Corners odds are real Bet365 prices in most matches; cards and shots are mostly estimates: check those prices (my_picks_markets in settings.json).",
+    "Other markets: under the 1X2 accas, My picks also shows one acca per market from the bangers (Over 2.5, Over 8.5 corners, Over 3.5 cards), total odds about 2 to 3. They are the same slips as the Banger accas sheet. In the test all legs won on 33-39% of slips. No Over 1.5 accas: the odds are too short. Corners odds are real Bet365 prices in most matches; cards are partly estimates: check those prices (my_picks_markets in settings.json).",
     "",
     "BANGERS (the safest pick of each kind)",
-    "1X2, Over 2.5, Over 1.5, Corners over, Cards over, Shots over: only picks that are 75%+ (bangers_min_prob in settings.json).",
+    "1X2, Over 2.5 goals, Over 8.5 corners, Over 3.5 cards first; Over 1.5 goals and Shots over behind More. 1X2, cards, Over 1.5 and shots: 75%+ (bangers_min_prob). Over 2.5 and Over 8.5 corners: 70%+, at 75% there are hardly any (bangers_min_prob_by_market).",
     "Over 2.5 uses half our chance, half the bookmaker's. A match in Over 2.5 is not shown again in Over 1.5.",
-    "Corners, cards and shots: every match once, at its highest line that is still 75%+ (never below 6.5 corners, 2.5 cards, 15.5 shots).",
-    "Test on 9 seasons, each predicted only with the seasons before it: right 1X2 81%, Over 2.5 81%, Over 1.5 80%, corners 79%, cards 82%, shots 78%. Lowest season 73-79%. National teams: 1X2 86%, Over 1.5 81% (competitive matches only, no Over 2.5).",
+    "Corners and cards: one line for every match, the lines the bookmakers sell (bangers_lines: over 8.5 corners, over 3.5 cards). Corners also shows the over 7.5 chance and odds: play over 7.5 for a safer leg. Shots: every match once, at its highest line that is still 75%+ (never below 15.5).",
+    "Test on 9 seasons, each predicted only with the seasons before it: right 1X2 81%, Over 2.5 73%, Over 8.5 corners 71% (the same picks as over 7.5: 81%), Over 3.5 cards 80%, Over 1.5 80%, shots 78%. Lowest season 68-79%. National teams: 1X2 86%, Over 1.5 81% (competitive matches only, no Over 2.5).",
     "No BTTS bangers: in 100,000 test matches the model never reached 75% for BTTS (highest 71%).",
     "Cups: domestic cups in 1X2 (82% in the test), Over 2.5 and Over 1.5. European cups only in Over 1.5: their 75%+ 1X2 picks were right only 71% in the test.",
     "BANGER ACCAS: one acca per market and day, from that market's bangers only, total odds about 2 to 3 (bangers_acca_min_odds / max_odds). One market per slip, so the same match is never twice in a slip.",
-    "In the test all legs won in 42% (1X2), 33% (Over 1.5), 30% (corners), 37% (cards), 36% (shots) of slips. At real old odds the 1X2 acca lost about 8% per slip (the bookmaker margin); the others have no old odds, so profit is not tested. Part 5c of the notebook has the tables.",
+    "In the test all legs won in 42% (1X2), 39% (Over 2.5), 33% (corners), 36% (cards), 36% (shots) of slips. No Over 1.5 accas: the odds are too short. At real old odds the 1X2 acca lost about 8% per slip (the bookmaker margin); the others have no old odds, so profit is not tested. Part 5c of the notebook has the tables.",
     "Odds = Bet365 when API-Football has that line, otherwise an estimate (our chance + a normal margin): check the price at your bookmaker. Corners also use the Bet365 3-way corners market (Over 7 there = 8 or more = Over 7.5, the same price), which has every line, so most corners picks have a real price. Legs paying under 1.15 are left out of the accas.",
     "The page shows My picks, Bangers, Mixed acca and All predictions first. Press More for everything else (simple_page: false shows all at once). The Excel file always has every sheet.",
     "",
     "MIXED ACCA",
-    "One acca a day from the bangers of every kind: the top 2 of 1X2, Over 2.5, Over 1.5, corners, cards and shots (mixed_acca_per_market in settings.json: 1 = shorter and safer). Safest first. Every match only once: a match that is top in two kinds goes where it is safest, and the other kind takes its next banger.",
-    "Test on 9 seasons (clubs): 2,075 days, on average 7.6 legs at about 3.8 total odds. Every leg won on 22% of days (the model said 22%), on another 32% only one leg lost. Top 1 of each kind: 4.4 legs, about 2.1 odds, won 38%. Corners now have real Bet365 prices in most matches; cards and shots are mostly estimates. Profit is not tested: old corners odds don't exist."
+    "One acca a day from the bangers of the 4 main kinds: the top 2 of 1X2, Over 2.5, Over 8.5 corners and Over 3.5 cards (mixed_acca_per_market in settings.json: 1 = shorter and safer). Safest first. Every match only once: a match that is top in two kinds goes where it is safest, and the other kind takes its next banger.",
+    "Test on 9 seasons (clubs): 1,712 days, on average 4.6 legs at about 2.8 total odds. Every leg won on 35% of days (the model said 35%), on another 39% only one leg lost. Top 1 of each kind: 3.0 legs, about 1.9 odds, won 47%. Corners have real Bet365 prices in most matches; cards are partly estimates. Profit is not tested: old corners and cards odds don't exist."
     "",
     "ONE SLIP PER MATCH",
     "A match goes into one acca only, across all acca sheets (one_slip_per_match in settings.json). So one bad result, like a favourite that draws, can only hurt one slip. The order: My picks first, then Mixed acca, Banger accas, Cup acca, International acca, Strong, Banger, Main, Other: each takes the best matches that are still free.",

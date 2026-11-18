@@ -13,7 +13,7 @@ INTRO = {"My picks": [
     "My own recommendation: 1 long acca around 5 odds and up to 2 safer accas around 2.3 odds, only when the model has them. No match is used twice. Same small stake on every slip, at most 1% of your bankroll.",
     "This exact rule in the 9 season test: 28.0% of slips won, +1.7% at average odds, -0.3% at Bet365, range -9.8% to +13.5%. So about break-even, not a sure profit. Expect losing runs: up to 18 long slips or 10 safer slips in a row.",
     "I would skip: weak picks, the main acca, other leagues in accas, and the other acca until your tracker shows it works.",
-    "Other markets: below the 1X2 accas you get one acca per market from the bangers (Over 2.5, Over 1.5, corners, cards, shots), total odds about 2 to 3, the same slips as Bangers > Banger accas. In the test all legs won on 30-37% of slips. Corners odds are real Bet365 prices in most matches now; cards and shots are mostly estimates: check those prices.",
+    "Other markets: below the 1X2 accas you get one acca per market from the bangers (Over 2.5, Over 8.5 corners, Over 3.5 cards), total odds about 2 to 3, the same slips as Bangers > Banger accas. In the test all legs won on 33-39% of slips. Corners odds are real Bet365 prices in most matches; cards are partly estimates: check those prices.",
     "One slip per match: a match goes into one acca only, across all acca sheets, so one bad result can only hurt one slip (one_slip_per_match in settings.json).",
     "National teams: competitive matches (no friendlies) can be in My picks, the strong and the banger acca too. Their accuracy is tested (79% for 65%+ picks), their profit is not: no old odds for national teams.",
     "Cups: cup matches can be in them too (cups_in_picks in settings.json). Accuracy tested (65%+ picks: 78% domestic, 69% European), profit not.",
@@ -26,9 +26,16 @@ INTRO = {"My picks": [
 ], "1X2": [
     "The likeliest result, only when it is 75%+. Test on 9 seasons (each season predicted only with the seasons before it): right 81% of the time, lowest season 78%. National teams (competitive matches only): 86%. Domestic cups: 82% (European cups are not here: 71% in the test).",
 ], "Over 2.5 goals": [
-    "Half our chance, half the bookmaker's, only 75%+. Test: right 81%, lowest season 73%. Rare: about 1 match in 200. No national teams here: their goal chances were too high in the test.",
+    "Half our chance, half the bookmaker's, only 70%+ (at 75% there is hardly ever one). Test on 9 seasons: right 73%, lowest season 70%. 75%+ picks were right 81%: the higher the %, the safer. No national teams here: their goal chances were too high in the test.",
 ], "Over 1.5 goals": [
     "75%+, only matches that are not already in Over 2.5. Test: right 80%, lowest season 79%. National teams: 81%. Cups: 81%.",
+], "_corners": [
+    "Over 8.5 corners, matches where it is 70%+. Test on 9 seasons: right 71%, lowest season 68%.",
+    "Want it safer? Play the same match as over 7.5 corners: the Over 7.5 % and Odds 7.5 columns. Those same picks as over 7.5 were right 81% in the test.",
+    "Odds = Bet365 (also its 3-way corners market, which has every line), otherwise an estimate: check the price at your bookmaker.",
+], "_cards": [
+    "Over 3.5 cards, matches where it is 75%+. Test on 9 seasons: right 80%, lowest season 77%. Cards = yellow + red: bookmakers count them in different ways, check the rules.",
+    "Odds = Bet365 when that line has a price, otherwise worked out from Bet365's own cards line (marked estimate): check the price at your bookmaker.",
 ], "Corners over": [
     "Every match once, at its highest line that is still 75%+ (never below 6.5). Test: right 79%, lowest season 76%.",
     "Odds = Bet365 when that line has a price, otherwise an estimate: check the price at your bookmaker. Corners also use the Bet365 3-way corners market, which has every line, so most corners picks have a real price.",
@@ -38,12 +45,12 @@ INTRO = {"My picks": [
     "Every match once, at its highest line that is still 75%+ (never below 15.5). Test: right 78%, lowest season 76%.",
 ], "Banger accas": [
     "One acca per market and day, only from that market's bangers, total odds about 2 to 3. One market per slip, so the same match is never twice in a slip.",
-    "Test, share of slips where all legs won: 1X2 42%, Over 1.5 33%, corners 30%, cards 37%, shots 36% (the model said 45, 34, 34, 34, 33%). At real old odds the 1X2 acca lost about 8% per slip: that is the bookmaker margin. The others have no old odds, so their profit is not tested. Keep stakes small.",
+    "Test, share of slips where all legs won: 1X2 42%, Over 2.5 39%, over 8.5 corners 33%, over 3.5 cards 36%, shots 36% (the model said 45, 40, 36, 35, 33%). No Over 1.5 accas: the odds are too short. At real old odds the 1X2 acca lost about 8% per slip: that is the bookmaker margin. The others have no old odds, so their profit is not tested. Keep stakes small.",
     "No BTTS bangers: in 100,000 test matches the model never reached 75% for BTTS (highest 71%).",
 ], "Mixed acca": [
-    "One acca a day from the bangers of every kind: the top 2 of 1X2, Over 2.5, Over 1.5, corners, cards and shots (mixed_acca_per_market in settings.json, 1 = shorter and safer). Safest first, every match only once: a match that is top in two kinds goes where it is safest.",
-    "Test on 9 seasons (clubs): 2,075 days, on average 7.6 legs at about 3.8 total odds. Every leg won on 22% of days (the model said 22%), and on another 32% only one leg lost. Top 1 of each kind: 4.4 legs, about 2.1 odds, won 38%.",
-    "Corners: real Bet365 prices in most matches. Cards and shots: mostly estimates, so check the real total odds at your bookmaker. Legs paying under 1.15 are left out of the accas.",
+    "One acca a day from the 4 main kinds: the top 2 of 1X2, Over 2.5, Over 8.5 corners and Over 3.5 cards (mixed_acca_per_market in settings.json, 1 = shorter and safer). Safest first, every match only once: a match that is top in two kinds goes where it is safest.",
+    "Test on 9 seasons (clubs): 1,712 days, on average 4.6 legs at about 2.8 total odds. Every leg won on 35% of days (the model said 35%), and on another 39% only one leg lost. Top 1 of each kind: 3 legs, about 1.9 odds, won 47%.",
+    "Corners: real Bet365 prices in most matches. Cards: partly estimates, so check the real total odds at your bookmaker. Legs paying under 1.15 are left out of the accas.",
 ], "All predictions": [
     "Every match of today and tomorrow: leagues, cups and national teams. Nothing is lost: what is not in a list or an acca is still here. Use the filter box to find a team or a league.",
 ], "Cups": [
@@ -55,10 +62,11 @@ INTRO = {"My picks": [
 ]}
 GROUPS = [
     ("My picks", ["My picks"]),
-    ("Bangers", ["1X2", "Over 2.5 goals", "Over 1.5 goals", "Corners over", "Cards over", "Shots over", "Banger accas"]),
+    ("Bangers", ["1X2", "Over 2.5 goals", "*corners", "*cards", "Banger accas"]),     # *: Over 8.5 corners / Over 3.5 cards (bangers_lines)
     ("Mixed acca", ["Mixed acca"]),
     ("All predictions", ["All predictions"]),
     ("Predictions", ["Bangers", "Strong", "Weak", "Cups", "Internationals", "Value bets"]),
+    ("More bangers", ["Over 1.5 goals", "Shots over"]),
     ("Accas", ["Main acca", "Strong acca", "Banger acca", "Other acca", "Cup acca", "International acca"]),
     ("Top by league", ["Top favourites", "Top goals", "Top BTTS", "Top corners"]),
     ("Goals", ["Over-Under 2.5", "BTTS", "Goal lines", "Team to score", "Underdog +1.5"]),
@@ -101,9 +109,26 @@ def _brand(title: str) -> str:
     return f"{html.escape(m[1])}<b>{html.escape(m[2])}</b>" if m else html.escape(t)
 
 
+def _names(names: list[str], sheets) -> list[str]:
+    """*corners = the corners bangers sheet, whatever its line: Over 8.5 corners (or Corners over without a fixed line)."""
+    out = []
+    for n in names:
+        if n.startswith("*"):
+            k = n[1:]
+            out += [x for x in sheets if re.fullmatch(rf"Over [\d.]+ {k}|{k.capitalize()} over", x)]
+        elif n in sheets:
+            out.append(n)
+    return out
+
+
 def write(path, sheets: dict[str, pd.DataFrame], notes: list[str], simple: bool = True, title: str = "PrincePredict") -> None:
-    data = {"updated": f"{datetime.now():%a %d %b %Y, %H:%M}", "notes": notes, "intro": INTRO,
-            "groups": [{"name": g, "tabs": [_sheet(n, sheets[n]) for n in names if n in sheets]} for g, names in GROUPS]}
+    intro = {k: v for k, v in INTRO.items() if not k.startswith("_")}
+    for x in sheets:                                    # Over 8.5 corners / Over 3.5 cards: the texts of their line
+        m = re.fullmatch(r"Over [\d.]+ (corners|cards)", x)
+        if m:
+            intro[x] = INTRO["_" + m[1]]
+    data = {"updated": f"{datetime.now():%a %d %b %Y, %H:%M}", "notes": notes, "intro": intro,
+            "groups": [{"name": g, "tabs": [_sheet(n, sheets[n]) for n in _names(names, sheets)]} for g, names in GROUPS]}
     data["groups"] = [g for g in data["groups"] if g["tabs"]]
     data["main"] = sum(g["name"] in MAIN_GROUPS for g in data["groups"]) if simple else len(data["groups"])
     blob = json.dumps(data, ensure_ascii=False, allow_nan=False).replace("</", "<\\/")

@@ -1,12 +1,16 @@
 """Bangers by market: the safest pick of each kind for every match, and one short acca per market.
 
 Rules (all in settings.json):
-- a pick needs bangers_min_prob (75%) or more
+- a pick needs bangers_min_prob (75%) or more, or its own level in bangers_min_prob_by_market
+  (Over 2.5 and Over 8.5 corners: 70%, tested below)
 - 1X2: the likeliest result. Over 2.5: half our chance, half the bookmaker's when there are odds
   (in the test that was clearly better than the model alone)
 - a match in Over 2.5 is not shown again in Over 1.5
-- corners, cards, shots: the highest line that is still 75%+, never below bangers_min_line,
-  so every match shows once, at its best line
+- corners and cards: one fixed line (bangers_lines: over 8.5 corners, over 3.5 cards), the lines the
+  bookmakers really sell. Shots (and corners/cards without a fixed line): the highest line that is
+  still 75%+, never below bangers_min_line, so every match shows once, at its best line
+- the page, My picks and the Mixed acca use the main markets (1X2, Over 2.5, corners, cards).
+  Over 1.5 has no acca: its odds are too short
 - BTTS is not here: in 100,000 test matches the model never reached 75% for it (highest 71%)
 - national teams: competitive matches only, 1X2 and Over 1.5 (their Over 2.5 chances were too high in the test)
 - cups: domestic cups 1X2, Over 2.5 and Over 1.5; European cups Over 1.5 only (their 75%+ 1X2 picks were right
@@ -27,10 +31,30 @@ from scipy.stats import nbinom, poisson
 from .betting import EST_MARGIN, slips_from_legs
 from .config import CUP_LEAGUES, INTL_LEAGUES
 
-MARKETS = {"1X2": "win", "Over 2.5 goals": "over25", "Over 1.5 goals": "over15",
-           "Corners over": "corners", "Cards over": "cards", "Shots over": "shots"}
 STATS = {"corners": ("C", "Corners"), "cards": ("K", "Cards"), "shots": ("S", "Shots")}
 MIN_LINE = {"corners": 6.5, "cards": 2.5, "shots": 15.5}     # lower lines are hardly offered by bookmakers
+LINES = {"corners": 8.5, "cards": 3.5}                       # fixed lines (bangers_lines in settings.json)
+MIN_PROB = {"over25": 0.70, "corners": 0.70}                 # own levels (bangers_min_prob_by_market)
+SAFER = {"corners": 7.5}                                     # also shown: the chance at the line most bookies sell
+MAIN = ("win", "over25", "corners", "cards")                 # first on the page, in My picks and the Mixed acca
+NO_ACCA = {"over15"}                                         # odds too short for an acca
+
+
+def lines(s: dict) -> dict:
+    """The fixed line of corners and cards from the settings. 0 or null = the highest 75%+ line."""
+    return {k: float(v) for k, v in {**LINES, **(s.get("bangers_lines") or {})}.items() if v}
+
+
+def markets(s: dict | None = None) -> dict[str, str]:
+    """{tab name: market}, the main markets first: 1X2, Over 2.5 goals, Over 8.5 corners, Over 3.5 cards,
+    then Over 1.5 goals and Shots over."""
+    ln = lines(s or {})
+    name = {"win": "1X2", "over25": "Over 2.5 goals", "over15": "Over 1.5 goals", "shots": "Shots over",
+            **{st: f"Over {ln[st]:g} {st}" if st in ln else f"{st.capitalize()} over" for st in ("corners", "cards")}}
+    return {name[m]: m for m in (*MAIN, "over15", "shots")}
+
+
+MARKETS = markets()
 SKIP = {"INT_FRIENDLY", "INT_OTHER"}                          # friendlies: squads change too much
 INTL_MARKETS = {"win", "over15"}
 EUROPEAN_CUPS = {"CUP_UCL", "CUP_UEL", "CUP_UECL"}
@@ -133,7 +157,9 @@ def legs(d: pd.DataFrame, s: dict, odds=("odds_h", "odds_d", "odds_a"), over_odd
     d is the predictions table (or the backtest in the same columns). The index is kept, so slips point
     back to the matches like every other acca."""
     t = float(s.get("bangers_min_prob", 0.75))
+    level = {**MIN_PROB, **(s.get("bangers_min_prob_by_market") or {})}
     min_line = {**MIN_LINE, **(s.get("bangers_min_line") or {})}
+    fixed = lines(s)
     lg = d["league"].astype(str)
     intl = lg.isin(INTL_LEAGUES).to_numpy()
     euro = lg.isin(EUROPEAN_CUPS).to_numpy()
@@ -142,8 +168,8 @@ def legs(d: pd.DataFrame, s: dict, odds=("odds_h", "odds_d", "odds_a"), over_odd
     more = d["more_odds"] if "more_odds" in d else pd.Series(None, index=d.index)
     out = []
 
-    def add(market, ok, pick, prob, price, line=np.nan, expected=np.nan, guess=None):
-        ok = ok & usable & ~np.isnan(prob) & (prob >= t)
+    def add(market, ok, pick, prob, price, line=np.nan, expected=np.nan, guess=None, safer=np.nan, safer_odds=np.nan):
+        ok = ok & usable & ~np.isnan(prob) & (prob >= float(level.get(market, t)))
         if market not in INTL_MARKETS:
             ok &= ~intl
         if market not in CUP_MARKETS:
@@ -157,7 +183,8 @@ def legs(d: pd.DataFrame, s: dict, odds=("odds_h", "odds_d", "odds_a"), over_odd
         out.append(pd.DataFrame({
             "market": market, "pick": np.asarray(pick, dtype=object)[ok] if np.ndim(pick) else pick,
             "prob": prob[ok], "odds": np.where(est, _guess(prob, guess), price)[ok], "est": est[ok],
-            "line": np.broadcast_to(line, len(d))[ok], "expected": np.broadcast_to(expected, len(d))[ok]},
+            "line": np.broadcast_to(line, len(d))[ok], "expected": np.broadcast_to(expected, len(d))[ok],
+            "safer": np.broadcast_to(safer, len(d))[ok], "safer_odds": np.broadcast_to(safer_odds, len(d))[ok]},
             index=d.index[ok]))
 
     P = np.column_stack([_col(d, c) for c in ("p_h", "p_d", "p_a")])
@@ -169,7 +196,7 @@ def legs(d: pd.DataFrame, s: dict, odds=("odds_h", "odds_d", "odds_a"), over_odd
 
     over, mk = _col(d, "p_over"), _col(d, "mk_over")
     over = np.where(np.isnan(mk), over, (over + mk) / 2)
-    in_over25 = usable & ~intl & ~euro & (over >= t)
+    in_over25 = usable & ~intl & ~euro & (over >= float(level.get("over25", t)))
     add("over25", np.ones(len(d), bool), "O", over, _col(d, over_odds))
     o15 = np.array([_more_price(m, "goals", 1.5, 0) or np.nan for m in more], float)
     add("over15", ~in_over25, "O15", _col(d, "p_over15"), o15)
@@ -181,15 +208,25 @@ def legs(d: pd.DataFrame, s: dict, odds=("odds_h", "odds_d", "odds_a"), over_odd
             if c in d:
                 known &= d[c].notna().to_numpy()
         mu = np.where(known, mu, np.nan)
-        line, chance = safest_line(mu, alpha, t, float(min_line[stat]))
+        ok = ~np.isnan(mu) & ~np.isnan(alpha)
+        if stat in fixed:                               # one line for every match, the one bookies sell
+            line = np.where(ok, fixed[stat], np.nan)
+            chance = np.where(ok, _sf(math.floor(fixed[stat]), np.nan_to_num(mu, nan=1.0), np.nan_to_num(alpha, nan=0.1)), np.nan)
+        else:
+            line, chance = safest_line(mu, alpha, float(level.get(stat, t)), float(min_line[stat]))
         price = np.array([_real_price(m, stat, ln) if ln == ln else np.nan for m, ln in zip(more, line)], float)
         guess = np.array([_from_market(m, stat, ln, a) if ln == ln and p != p else np.nan
                           for m, ln, a, p in zip(more, line, alpha, price)], float)
         picks = np.array([f"{code}:T:O:{ln}" if ln == ln else "" for ln in line], dtype=object)
-        add(stat, ~np.isnan(line), picks, chance, price, line, mu, guess)
+        safer, safer_odds = np.nan, np.nan
+        if stat in SAFER and stat in fixed and SAFER[stat] < fixed[stat]:
+            L = SAFER[stat]
+            safer = np.where(ok, _sf(math.floor(L), np.nan_to_num(mu, nan=1.0), np.nan_to_num(alpha, nan=0.1)), np.nan)
+            safer_odds = np.array([_real_price(m, stat, L) for m in more], float)
+        add(stat, ~np.isnan(line), picks, chance, price, line, mu, guess, safer, safer_odds)
 
     if not out:
-        return pd.DataFrame(columns=["market", "pick", "prob", "odds", "est", "line", "expected"])
+        return pd.DataFrame(columns=["market", "pick", "prob", "odds", "est", "line", "expected", "safer", "safer_odds"])
     return pd.concat(out)
 
 
@@ -197,7 +234,7 @@ def tables(pred: pd.DataFrame, s: dict, league_label, league_type, pick_name) ->
     """One sheet per market, safest first."""
     b = legs(pred, s)
     out = {}
-    for tab, market in MARKETS.items():
+    for tab, market in markets(s).items():
         x = b[b["market"] == market]
         r = pred.loc[x.index]
         t = pd.DataFrame({
@@ -207,6 +244,10 @@ def tables(pred: pd.DataFrame, s: dict, league_label, league_type, pick_name) ->
             "Pick %": x["prob"], "Odds": x["odds"], "Price": np.where(x["est"], "estimate", "")})
         if market in STATS:
             t.insert(t.columns.get_loc("Pick %"), "Expected", x["expected"])
+        if market in SAFER and x["safer"].notna().any():        # corners: also the over 7.5 most bookies sell
+            L = SAFER[market]
+            t.insert(t.columns.get_loc("Price"), f"Over {L:g} %", x["safer"].to_numpy(float))
+            t.insert(t.columns.get_loc("Price"), f"Odds {L:g}", x["safer_odds"].to_numpy(float))
         if market == "win":
             t["Pick"] = [f"{h} win" if p == "H" else f"{a} win" if p == "A" else "Draw"
                          for p, h, a in zip(x["pick"], r["home"], r["away"])]
@@ -234,7 +275,9 @@ def accas(pred: pd.DataFrame, s: dict, used: set | None = None) -> dict[str, dic
         return {}
     day = pd.to_datetime(pred.loc[b.index, "date_local"]).dt.strftime("%Y-%m-%d")
     out = {}
-    for tab, market in MARKETS.items():
+    for tab, market in markets(s).items():
+        if market in NO_ACCA:
+            continue
         for d, g in b[b["market"] == market].groupby(day[b["market"] == market]):
             if used is not None:
                 g = g[~g.index.isin(used)]
@@ -247,11 +290,12 @@ def accas(pred: pd.DataFrame, s: dict, used: set | None = None) -> dict[str, dic
 
 
 def mixed_slip(b: pd.DataFrame, s: dict) -> list[dict]:
-    """One acca from one day's bangers of every kind: the top mixed_acca_per_market (2) of each market,
-    safest first. A match is used once: if it is top in two markets, it goes where it is safest and the
+    """One acca from one day's bangers of the main kinds (1X2, Over 2.5, corners, cards): the top
+    mixed_acca_per_market (2) of each, safest first. A match is used once: if it is top in two markets, it goes where it is safest and the
     other market takes its next banger."""
     n = int(s.get("mixed_acca_per_market", 2))
-    b = b[b["odds"] >= float(s.get("acca_leg_min_odds", 1.15))].sort_values("prob", ascending=False, kind="stable")
+    b = b[b["market"].isin(MAIN) & (b["odds"] >= float(s.get("acca_leg_min_odds", 1.15)))]
+    b = b.sort_values("prob", ascending=False, kind="stable")
     used, count, legs_ = set(), {}, []
     for i, r in zip(b.index, b.itertuples(index=False)):
         if i in used or count.get(r.market, 0) >= n:
@@ -261,7 +305,7 @@ def mixed_slip(b: pd.DataFrame, s: dict) -> list[dict]:
         legs_.append((i, r.pick, float(r.prob), float(r.odds), bool(r.est), r.market))
     if len(legs_) < 2:
         return []
-    order = {m: k for k, m in enumerate(MARKETS.values())}
+    order = {m: k for k, m in enumerate(MAIN)}
     legs_.sort(key=lambda x: (order[x[5]], -x[2]))                 # grouped by kind on the slip
     return [{"legs": [x[:4] for x in legs_], "odds": float(np.prod([x[3] for x in legs_])),
              "win_prob": float(np.prod([x[2] for x in legs_])), "est": [x[0] for x in legs_ if x[4]],
@@ -335,7 +379,7 @@ def accuracy_table(bp: pd.DataFrame, more: pd.DataFrame | None, s: dict, intl_bt
         won = _won(frame, b)
         folds = frame.loc[b.index, "fold"].to_numpy()
         usable = ~frame["league"].isin(SKIP)
-        for tab, market in MARKETS.items():
+        for tab, market in markets(s).items():
             m = (b["market"] == market).to_numpy()
             if m.any():
                 row(prefix + tab, b[m], won[m], folds[m], int((usable & frame[need[market]].notna()).sum()))
@@ -354,7 +398,9 @@ def acca_table(bp: pd.DataFrame, more: pd.DataFrame | None, s: dict) -> pd.DataF
     b["won"] = _won(d, b)
     b["day"] = pd.to_datetime(d.loc[b.index, "date"]).dt.strftime("%Y-%m-%d").to_numpy()
     rows = []
-    for tab, market in MARKETS.items():
+    for tab, market in markets(s).items():
+        if market in NO_ACCA:
+            continue
         g = b[(b["market"] == market) & b["won"].notna()]
         res = []
         for _, x in g.groupby("day"):

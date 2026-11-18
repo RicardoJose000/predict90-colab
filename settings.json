@@ -24,6 +24,14 @@
     "cards": 2.5,
     "shots": 15.5
   },
+  "bangers_lines": {
+    "corners": 8.5,
+    "cards": 3.5
+  },
+  "bangers_min_prob_by_market": {
+    "over25": 0.7,
+    "corners": 0.7
+  },
   "bangers_acca_min_odds": 2.0,
   "bangers_acca_max_odds": 3.0,
   "simple_page": true,
@@ -76,13 +84,15 @@
     "intl_acca_min_prob": "international acca: favourites to win only, competitive matches only (no friendlies), every leg at least this chance",
     "intl_in_picks": "true = competitive national team matches (no friendlies) can also be in My picks, the strong and the banger acca. Accuracy tested, profit not",
     "bangers_min_prob": "Bangers tab: only picks with at least this chance. 0.75 is the tested level (part 5c of the notebook)",
-    "bangers_min_line": "Bangers tab: corners, cards and shots never go below these lines (lower lines are hardly offered by bookmakers)",
+    "bangers_min_line": "Bangers tab: shots (and corners/cards without a fixed line) never go below these lines (lower lines are hardly offered by bookmakers)",
+    "bangers_lines": "Bangers: corners and cards at one fixed line for every match (over 8.5 corners, over 3.5 cards). 0 = the highest line that is still 75%+ instead",
+    "bangers_min_prob_by_market": "Bangers: own minimum chance for some markets. Over 2.5 and over 8.5 corners 0.70 (at 0.75 there are hardly any). Test: over 2.5 70%+ right 73%, over 8.5 corners 70%+ right 71% (played as over 7.5: 81%), over 3.5 cards 75%+ right 80%",
     "bangers_acca_min_odds": "banger accas (one per market and day): a slip is finished when its total odds reach this",
     "bangers_acca_max_odds": "banger accas: a slip never goes above these total odds",
     "page_title": "the name on top of the results page and in the browser tab",
-    "my_picks_markets": "true = My picks also shows the banger acca of Over 2.5, Over 1.5, corners, cards and shots (the same slips as Banger accas). false = 1X2 only",
+    "my_picks_markets": "true = My picks also shows the banger acca of Over 2.5, over 8.5 corners and over 3.5 cards (the same slips as Banger accas). false = 1X2 only",
     "simple_page": "true = the results page shows My picks, Bangers, Mixed acca and All predictions first, the rest behind the More button. false = show everything",
-    "mixed_acca_per_market": "Mixed acca: how many bangers of each kind (1X2, over 2.5, over 1.5, corners, cards, shots). 2 = about 7-8 legs, 1 = about 4 legs, shorter and safer",
+    "mixed_acca_per_market": "Mixed acca: how many bangers of each kind (1X2, over 2.5, over 8.5 corners, over 3.5 cards). 2 = up to 8 legs, 1 = up to 4 legs, shorter and safer",
     "one_slip_per_match": "true = a match goes into one acca only, across ALL acca sheets (My picks first, then Mixed, Banger accas, Cup, International, Strong, Banger, Main, Other), so one bad result can only hurt one slip. false = every sheet picks freely",
     "cups": "true = also predict the cups: Champions League, Europa League, Conference League and the big domestic cups. Needs the API-Football key",
     "cups_in_picks": "true = cup matches can also be in My picks, the strong and the banger acca. Accuracy tested, profit not",
