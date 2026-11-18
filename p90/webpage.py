@@ -49,7 +49,7 @@ INTRO = {"My picks": [
     "Test: clubs 9 seasons, about 8 picks a day, right 88% (the model said 86%), lowest season 85%. National teams (competitive matches): right 87%. No friendlies. Odds = Bet365 Asian handicap when it has that line, otherwise an estimate: check your bookmaker. Profit not tested: no old handicap odds.",
 ], "Banger accas": [
     "One acca per market and day, only from that market's bangers, total odds about 2 to 3. One market per slip, so the same match is never twice in a slip.",
-    "Test, share of slips where all legs won: 1X2 42%, Over 2.5 39%, over 8.5 corners 33%, over 3.5 cards 36%, shots 36% (the model said 45, 40, 36, 35, 33%). No Over 1.5 accas: the odds are too short. At real old odds the 1X2 acca lost about 8% per slip: that is the bookmaker margin. The others have no old odds, so their profit is not tested. Keep stakes small.",
+    "Test, share of slips where all legs won: 1X2 42%, Over 2.5 39%, over 8.5 corners 33%, over 3.5 cards 36%, shots 36% (the model said 45, 40, 36, 35, 33%). No Over 1.5 accas: the odds are too short. At real old odds the 1X2 acca lost about 8% per slip and the Over 2.5 acca about 11%: that is the bookmaker margin. The others have no old odds, so their profit is not tested. Keep stakes small.",
     "No BTTS bangers: in 100,000 test matches the model never reached 75% for BTTS (highest 71%).",
 ], "Mixed acca": [
     "One acca a day from the 4 main kinds: the top 2 of 1X2, Over 2.5, Over 8.5 corners and Over 3.5 cards (mixed_acca_per_market in settings.json, 1 = shorter and safer). Safest first, every match only once: a match that is top in two kinds goes where it is safest.",

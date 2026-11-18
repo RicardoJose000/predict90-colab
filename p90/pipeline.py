@@ -556,7 +556,7 @@ NOTES = [
     "No BTTS bangers: in 100,000 test matches the model never reached 75% for BTTS (highest 71%).",
     "Cups: domestic cups in 1X2 (82% in the test), Over 2.5 and Over 1.5. European cups only in Over 1.5: their 75%+ 1X2 picks were right only 71% in the test.",
     "BANGER ACCAS: one acca per market and day, from that market's bangers only, total odds about 2 to 3 (bangers_acca_min_odds / max_odds). One market per slip, so the same match is never twice in a slip.",
-    "In the test all legs won in 42% (1X2), 39% (Over 2.5), 33% (corners), 36% (cards), 36% (shots) of slips. No Over 1.5 accas: the odds are too short. At real old odds the 1X2 acca lost about 8% per slip (the bookmaker margin); the others have no old odds, so profit is not tested. Part 5c of the notebook has the tables.",
+    "In the test all legs won in 42% (1X2), 39% (Over 2.5), 33% (corners), 36% (cards), 36% (shots) of slips. No Over 1.5 accas: the odds are too short. At real old odds the 1X2 acca lost about 8% per slip and the Over 2.5 acca about 11% (the bookmaker margin); the others have no old odds, so profit is not tested. Part 5c of the notebook has the tables.",
     "Odds = Bet365 when API-Football has that line, otherwise an estimate (our chance + a normal margin): check the price at your bookmaker. Corners also use the Bet365 3-way corners market (Over 7 there = 8 or more = Over 7.5, the same price), which has every line, so most corners picks have a real price. Legs paying under 1.15 are left out of the accas.",
     "The page shows My picks, Bangers, Mixed acca and All predictions first. Press More for everything else (simple_page: false shows all at once). The Excel file always has every sheet.",
     "",
