@@ -108,7 +108,7 @@ def detect_new_spellings(df: pd.DataFrame, verbose=True) -> pd.DataFrame:
 
 
 COLUMNS = ["league", "country", "tier", "season", "date", "time", "home", "away",
-           "hg", "ag", "res", "hs", "as_", "hst", "ast", "hc", "ac", "hy", "ay", "hr", "ar",
+           "hg", "ag", "res", "hs", "as_", "hst", "ast", "hc", "ac", "hy", "ay", "hr", "ar", "hthg", "htag",
            "o_h", "o_d", "o_a", "m_h", "m_d", "m_a", "b_h", "b_d", "b_a",
            "o_over", "o_under", "m_over", "m_under", "b_over", "b_under"]
 
@@ -189,7 +189,7 @@ def normalise_main(df: pd.DataFrame, code: str, season: str) -> pd.DataFrame:
         "res": df["FTR"].astype(str).str.strip() if "FTR" in df else (df["Res"] if "Res" in df else np.nan),
         "hs": _col(df, "HS"), "as_": _col(df, "AS"), "hst": _col(df, "HST"), "ast": _col(df, "AST"),
         "hc": _col(df, "HC"), "ac": _col(df, "AC"), "hy": _col(df, "HY"), "ay": _col(df, "AY"),
-        "hr": _col(df, "HR"), "ar": _col(df, "AR"),
+        "hr": _col(df, "HR"), "ar": _col(df, "AR"), "hthg": _col(df, "HTHG"), "htag": _col(df, "HTAG"),
         "o_h": _col(df, "AvgH", "BbAvH", "B365H", "PSH", "WHH"),
         "o_d": _col(df, "AvgD", "BbAvD", "B365D", "PSD", "WHD"),
         "o_a": _col(df, "AvgA", "BbAvA", "B365A", "PSA", "WHA"),
@@ -221,7 +221,7 @@ def normalise_extra(df: pd.DataFrame, code: str, fixtures=False) -> pd.DataFrame
         "ag": _num_or_nan(df["AG"]) if "AG" in df else np.nan,
         "res": df["Res"].astype(str).str.strip() if "Res" in df else np.nan,
         "hs": np.nan, "as_": np.nan, "hst": np.nan, "ast": np.nan,
-        "hc": np.nan, "ac": np.nan, "hy": np.nan, "ay": np.nan, "hr": np.nan, "ar": np.nan,
+        "hc": np.nan, "ac": np.nan, "hy": np.nan, "ay": np.nan, "hr": np.nan, "ar": np.nan, "hthg": np.nan, "htag": np.nan,
         "o_h": _col(df, f"Avg{c}H", f"PS{c}H", f"B365{c}H"),
         "o_d": _col(df, f"Avg{c}D", f"PS{c}D", f"B365{c}D"),
         "o_a": _col(df, f"Avg{c}A", f"PS{c}A", f"B365{c}A"),

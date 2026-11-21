@@ -247,7 +247,8 @@ def api_fixtures(api: ApiFootball, days: list[date], leagues: list[str], matcher
             rows.append({"league": lg, "home": h, "away": a,
                          "api_home": fx["teams"]["home"]["name"], "api_away": fx["teams"]["away"]["name"],
                          "date_local": pd.Timestamp(local.date()), "time_local": local.strftime("%H:%M"),
-                         "fixture_id": fx["fixture"]["id"], "round": fx["league"].get("round", "")})
+                         "fixture_id": fx["fixture"]["id"], "round": fx["league"].get("round", ""),
+                         "logo_h": fx["teams"]["home"].get("logo") or "", "logo_a": fx["teams"]["away"].get("logo") or ""})
     matcher.save()
     return pd.DataFrame(rows)
 

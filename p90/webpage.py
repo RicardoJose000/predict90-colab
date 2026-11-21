@@ -55,6 +55,11 @@ INTRO = {"My picks": [
     "One acca a day from the 4 main kinds: the top 2 of 1X2, Over 2.5, Over 8.5 corners and Over 3.5 cards (mixed_acca_per_market in settings.json, 1 = shorter and safer). Safest first, every match only once: a match that is top in two kinds goes where it is safest.",
     "Test on 9 seasons (clubs): 1,712 days, on average 4.6 legs at about 2.8 total odds. Every leg won on 35% of days (the model said 35%), and on another 39% only one leg lost. Top 1 of each kind: 3 legs, about 1.9 odds, won 47%.",
     "Corners: real Bet365 prices in most matches. Cards: partly estimates, so check the real total odds at your bookmaker. Legs paying under 1.15 are left out of the accas.",
+], "Insights": [
+    "Facts for every match from our own data (20 years of results and odds, no scraping): the odds check, the last 10 matches of each team, goals by half, head to head and injuries. Tap a part to open it.",
+    "Odds check: the price now and its implied chance (1 / odds), and how often this team really won at about the same price. Always with the number of games: 45 games is a strong sign, 6 games a weak one.",
+    "Hot facts: what happened, or did not happen, in 8+ of the last 10 (5+ meetings for head to head), strongest first. Press Hot facts only to see just those, the matches with the most first.",
+    "League games only. Corners, cards and goals by half only for the 22 main leagues, the others show -. No national teams.",
 ], "All predictions": [
     "Every match of today and tomorrow: leagues, cups and national teams. Nothing is lost: what is not in a list or an acca is still here. Use the filter box to find a team or a league.",
 ], "Cups": [
@@ -67,6 +72,7 @@ INTRO = {"My picks": [
 GROUPS = [
     ("My picks", ["My picks"]),
     ("Bangers", ["1X2", "Over 2.5 goals", "*corners", "*cards", "Underdog handicap", "Banger accas"]),     # *: Over 8.5 corners / Over 3.5 cards (bangers_lines)
+    ("Insights", ["Insights"]),
     ("Mixed acca", ["Mixed acca"]),
     ("All predictions", ["All predictions"]),
     ("Predictions", ["Bangers", "Strong", "Weak", "Cups", "Internationals", "Value bets"]),
@@ -92,7 +98,29 @@ def _clean(v):
     return v if isinstance(v, (int, str)) else str(v)
 
 
+CARD_META = ["Date", "Time", "League", "League type", "Match", "Home", "Away", "Home logo", "Away logo"]
+
+
+def _cards(name: str, df: pd.DataFrame) -> dict:
+    """Insights: one row per match for the filters, and its facts as short lists [section, side, stat, value, hot]
+    (side 1 = home team, 2 = away team, 0 = both), so the page stays small."""
+    rows, facts, sections = [], [], []
+    for _, g in df.groupby(["Date", "Time", "League", "Home", "Away"], sort=False, dropna=False):
+        f = g.iloc[0]
+        rows.append([_clean(f[c]) if c != "Match" else f"{f['Home']} v {f['Away']}" for c in CARD_META])
+        out = []
+        for sec, team, stat, val, hot in g[["Section", "Team", "Stat", "Value", "Hot"]].itertuples(index=False):
+            if sec not in sections:
+                sections.append(sec)
+            out.append([sections.index(sec), 1 if team == f["Home"] else 2 if team == f["Away"] else 0,
+                        _clean(stat), _clean(val), 1 if hot else 0])
+        facts.append(out)
+    return {"name": name, "columns": CARD_META, "rows": rows, "facts": facts, "sections": sections}
+
+
 def _sheet(name: str, df: pd.DataFrame) -> dict:
+    if {"Section", "Stat", "Value"} <= set(df.columns):
+        return _cards(name, df)
     d = df.copy()
     if "Row" not in d and name not in SHEETS_WITH_ALL_COLUMNS:
         d = d[[c for c in d.columns if c not in HIDE]]
@@ -103,7 +131,7 @@ def _sheet(name: str, df: pd.DataFrame) -> dict:
             "rows": [[_clean(v) for v in row] for row in d.astype(object).where(d.notna(), None).to_numpy().tolist()]}
 
 
-MAIN_GROUPS = ("My picks", "Bangers", "Mixed acca", "All predictions")    # the simple page: the rest is behind "More"
+MAIN_GROUPS = ("My picks", "Bangers", "Insights", "Mixed acca", "All predictions")    # the simple page: the rest is behind "More"
 
 
 def _brand(title: str) -> str:
@@ -192,13 +220,36 @@ td.hi{color:var(--lime);font-weight:600}
 .empty{padding:26px;text-align:center;color:var(--ink3);border:1px dashed var(--line);border-radius:12px}
 .notes{max-width:820px;color:var(--ink2)}.notes p{margin:0 0 7px}.notes h2{color:var(--ink);font-size:15px;margin:16px 0 6px}.notes h2:first-child{margin-top:0}
 footer{max-width:1320px;margin:6px auto 0;padding:0 16px;color:var(--ink3);font-size:13px}
+.hotbtn{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:7px 12px;min-height:38px;cursor:pointer;color:var(--ink2)}
+.hotbtn[aria-pressed=true]{background:var(--lime);color:#000;border-color:var(--lime);font-weight:600}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,360px),1fr));gap:12px;align-items:start}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.ch{padding:10px 12px;background:var(--panel2)}
+.teams{display:flex;align-items:center;gap:7px;font-weight:600;font-size:15px;flex-wrap:wrap}
+.teams .vs{color:var(--ink3);font-weight:400}
+.sub{display:flex;gap:8px;align-items:center;color:var(--ink3);font-size:12.5px;margin-top:3px}
+.badge{margin-left:auto;background:var(--dim);color:var(--lime);font-size:11.5px;font-weight:700;padding:1px 8px;border-radius:999px;white-space:nowrap}
+.logo{width:22px;height:22px;flex:none;object-fit:contain}
+.ini{display:inline-grid;place-items:center;flex:none;width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.1);font-size:10.5px;font-weight:700;color:var(--ink2)}
+.ini.both{width:auto;padding:0 6px;border-radius:6px;font-size:10px}
+.fr{display:grid;grid-template-columns:auto 1fr auto;gap:9px;align-items:center;padding:6px 12px;border-top:1px solid var(--line);font-size:14px}
+.g3{display:grid;grid-template-columns:1fr minmax(54px,auto) minmax(54px,auto);gap:4px 12px;align-items:center;padding:5px 12px;border-top:1px solid var(--line);font-size:13.5px}
+.g3.head{color:var(--ink3);font-size:12px;border-top:0}
+.g2{display:grid;grid-template-columns:1fr auto;gap:4px 12px;padding:5px 12px;border-top:1px solid var(--line);font-size:13.5px}
+.v{font-family:var(--mono);text-align:right;white-space:nowrap}.v.hot{color:var(--lime);font-weight:700}
+.para{padding:8px 12px;color:var(--ink);font-size:13.5px;border-top:1px solid var(--line)}
+.team{display:flex;align-items:center;gap:7px;padding:8px 12px 2px;font-weight:600;font-size:13.5px}
+.card details{border-top:1px solid var(--line)}
+.card summary{padding:9px 12px;cursor:pointer;color:var(--ink2);font-weight:600;font-size:13.5px;list-style-position:inside}
+.card summary:hover{color:var(--ink)}
+.nohot{padding:8px 12px;color:var(--ink3);font-size:13px;border-top:1px solid var(--line)}
 </style></head><body>
 <header><h1>__BRAND__</h1><span class="stamp" id="stamp"></span></header>
 <nav aria-label="Sections"><div class="bar" id="groups"></div><div class="bar" id="tabs"></div></nav>
 <main>
 <div class="filters" id="filters">
 <select id="fDay" aria-label="Day"></select><select id="fType" aria-label="League type"></select><select id="fLeague" aria-label="League"></select>
-<input id="fText" type="search" placeholder="Search team" aria-label="Search team"><span class="count" id="count"></span>
+<input id="fText" type="search" placeholder="Search team" aria-label="Search team"><button id="fHot" class="hotbtn" type="button" aria-pressed="false">Hot facts only</button><span class="count" id="count"></span>
 </div>
 <div id="view"></div>
 </main>
@@ -208,7 +259,7 @@ footer{max-width:1320px;margin:6px auto 0;padding:0 16px;color:var(--ink3);font-
 /* everything inside a function: the page also works when it is opened by another page (the password lock) */
 (function(){
 var D=JSON.parse(document.getElementById("d").textContent),$=function(i){return document.getElementById(i)};
-var S={g:0,t:0,sort:null,up:false,day:"",type:"",league:"",text:"",more:false};
+var S={g:0,t:0,sort:null,up:false,day:"",type:"",league:"",text:"",more:false,hot:false};
 function el(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
 function fmt(col,v){if(v==null||v==="")return"";if(typeof v!=="number")return String(v);
  if(col.indexOf("%")>=0)return(v*100).toFixed(1)+"%";
@@ -233,6 +284,7 @@ function drawFilters(t){var slip=isSlip(t);
  fill($("fType"),"All types",uniq(t,"League type"),S.type);$("fType").style.display=slip||t.columns.indexOf("League type")<0?"none":"";
  fill($("fLeague"),"All leagues",uniq(t,"League").sort(),S.league);$("fLeague").style.display=slip||t.columns.indexOf("League")<0?"none":"";
  $("fText").style.display=slip?"none":"";$("fText").value=S.text;
+ $("fHot").style.display=t.facts?"":"none";$("fHot").setAttribute("aria-pressed",S.hot?"true":"false");
  S.day=$("fDay").value;S.type=$("fType").value;S.league=$("fLeague").value}
 function drawTable(t,box){
  var dc=t.columns.indexOf("Date"),tc=t.columns.indexOf("League type"),lc=t.columns.indexOf("League"),mc=t.columns.indexOf("Match");
@@ -263,13 +315,52 @@ function drawSlips(t,box){var c={};t.columns.forEach(function(n,i){c[n]=i});var 
   s.legs.forEach(function(r){var d=el("div","leg"),p=el("b","",r[c.Pick]),o=el("span","o",fmt("odds",r[c.Odds]));d.appendChild(p);d.appendChild(o);
    d.appendChild(el("span","m",r[c.Match]));d.appendChild(el("span","c",fmt("%",r[c["Pick %"]])));d.appendChild(el("span","l",r[c.League]));
    d.appendChild(r[c.Price]?el("span","est","estimate, check price"):el("span"));a.appendChild(d)});g.appendChild(a)});box.appendChild(g)}
+/* Insights: one card per match, hot facts on top, the other parts open on a tap (built only then: fast on a phone) */
+function ini(name){var s=String(name||"").replace(/[^A-Za-z0-9 ]/g,"").split(" ").filter(Boolean).slice(0,2).map(function(w){return w[0]}).join("").toUpperCase();return el("span","ini",s||"?")}
+function badge(name,logo){if(!logo)return ini(name);var i=el("img","logo");i.alt="";i.loading="lazy";i.onerror=function(){if(i.parentNode)i.parentNode.replaceChild(ini(name),i)};i.src=logo;return i}
+function hotv(v,min){var m=/^(\d+)\/(\d+)$/.exec(v||"");if(!m)return false;var h=+m[1],n=+m[2];return n>=min&&(h/n>=.8||(n-h)/n>=.8)}
+function short(n){n=String(n||"");return n.length>12?n.slice(0,11)+".":n}
+function row(cls,a,b,c){var d=el("div",cls);[a,b,c].forEach(function(x){if(x!=null)d.appendChild(typeof x==="string"?el("span","",x):x)});return d}
+function fillSec(dt,name,fs,mark,H,A){
+ if(name==="Last 10 matches"||name==="Goals by half"){dt.appendChild(row("g3 head",el("span"),el("span","v",short(H)),el("span","v",short(A))));
+  var rows={},order=[];fs.forEach(function(f){if(!rows[f[2]]){rows[f[2]]={};order.push(f[2])}rows[f[2]][f[1]]=f[3]});
+  order.forEach(function(s){var v1=rows[s][1]||"-",v2=rows[s][2]||"-",hot=name==="Last 10 matches";
+   dt.appendChild(row("g3",s,el("span","v"+(hot&&hotv(v1,8)?" hot":""),v1),el("span","v"+(hot&&hotv(v2,8)?" hot":""),v2)))});return}
+ if(name==="Odds check"){[1,2].forEach(function(k){var fk=fs.filter(function(f){return f[1]===k});if(!fk.length)return;
+   dt.appendChild(row("team",mark(k),k===1?H:A));
+   fk.forEach(function(f){dt.appendChild(f[2]==="Summary"?el("div","para",f[3]):row("g2",f[2],el("span","v",f[3])))})});return}
+ if(name==="Head to head"){fs.forEach(function(f){dt.appendChild(f[2]==="Results"?el("div","para",f[3]):row("g2",f[2],el("span","v"+(hotv(f[3],5)?" hot":""),f[3])))});return}
+ fs.forEach(function(f){dt.appendChild(row("team",mark(f[1]),(f[1]===1?H:f[1]===2?A:"")+" - "+f[2]));dt.appendChild(el("div","para",f[3]))})}
+function drawCards(t,box){var c={};t.columns.forEach(function(n,i){c[n]=i});var q=S.text.toLowerCase(),list=[],sec=t.sections||[],HOT=sec.indexOf("Hot facts");
+ t.rows.forEach(function(r,i){if((!S.day||r[c.Date]===S.day)&&(!S.type||r[c["League type"]]===S.type)&&(!S.league||r[c.League]===S.league)&&(!q||String(r[c.Match]).toLowerCase().indexOf(q)>=0)){
+  var n=t.facts[i].filter(function(f){return f[0]===HOT}).length;if(!S.hot||n)list.push({r:r,f:t.facts[i],n:n})}});
+ if(S.hot)list.sort(function(a,b){return b.n-a.n});
+ $("count").textContent=list.length+(list.length===1?" match":" matches");
+ if(!list.length){box.appendChild(el("div","empty",S.hot?"No hot facts for this filter today.":"Nothing here for this filter today."));return}
+ var g=el("div","cards");
+ list.forEach(function(x){var r=x.r,H=r[c.Home],A=r[c.Away],a=el("article","card"),h=el("div","ch"),by={};
+  function mark(s){return s===1?badge(H,r[c["Home logo"]]):s===2?badge(A,r[c["Away logo"]]):el("span","ini both","H2H")}
+  var tm=el("div","teams");[mark(1),el("span","",H),el("span","vs","v"),el("span","",A),mark(2)].forEach(function(e){tm.appendChild(e)});h.appendChild(tm);
+  var sb=el("div","sub",[r[c.Date],r[c.Time],r[c.League]].filter(Boolean).join(" | "));if(x.n)sb.appendChild(el("span","badge",x.n+" hot"));h.appendChild(sb);a.appendChild(h);
+  x.f.forEach(function(f){(by[f[0]]=by[f[0]]||[]).push(f)});
+  var hf=by[HOT]||[];if(!hf.length)a.appendChild(el("div","nohot","No hot facts (8 of 10 or more) for this match"));
+  function hrow(f){return row("fr",mark(f[1]),String(f[2]).replace(/^H2H: /,""),el("span","v hot",f[3]))}
+  var top=S.hot?hf:hf.slice(0,5);top.forEach(function(f){a.appendChild(hrow(f))});
+  if(hf.length>top.length){var mo=el("details");mo.appendChild(el("summary","",(hf.length-top.length)+" more hot facts"));
+   mo.addEventListener("toggle",function(){if(mo.open&&mo.children.length===1)hf.slice(5).forEach(function(f){mo.appendChild(hrow(f))})});a.appendChild(mo)}
+  if(!S.hot)sec.forEach(function(name,k){if(k===HOT||!by[k])return;var dt=el("details");dt.appendChild(el("summary","",name));
+   dt.addEventListener("toggle",function(){if(dt.open&&dt.children.length===1)fillSec(dt,name,by[k],mark,H,A)});a.appendChild(dt)});
+  g.appendChild(a)});
+ box.appendChild(g)}
+function body(t,box){if(isSlip(t))drawSlips(t,box);else if(t.facts)drawCards(t,box);else drawTable(t,box)}
 function drawNotes(box){var n=el("div","notes");D.notes.forEach(function(x,i){if(!x)return;n.appendChild(/^[A-Z0-9 ()\/,]+$/.test(x.split("(")[0].trim())&&x.length<70?el("h2","",x):el("p","",x))});box.appendChild(n)}
 function drawIntro(box,name){var x=D.intro[name];if(!x)return;var d=el("div","intro");x.forEach(function(p){d.appendChild(el("p","",p))});box.appendChild(d)}
 function draw(){drawNav();var box=$("view");box.textContent="";
  if(S.g===-1){$("filters").style.display="none";drawNotes(box);return}
- $("filters").style.display="";var t=tab();drawFilters(t);drawIntro(box,t.name);if(isSlip(t))drawSlips(t,box);else drawTable(t,box)}
+ $("filters").style.display="";var t=tab();drawFilters(t);drawIntro(box,t.name);body(t,box)}
 ["fDay","fType","fLeague"].forEach(function(i,k){$(i).onchange=function(){S[["day","type","league"][k]]=this.value;draw()}});
-$("fText").oninput=function(){S.text=this.value;var box=$("view");box.textContent="";drawTable(tab(),box)};
+$("fText").oninput=function(){S.text=this.value;var box=$("view");box.textContent="";body(tab(),box)};
+$("fHot").onclick=function(){S.hot=!S.hot;draw()};
 $("stamp").textContent="Updated "+D.updated;draw();
 })();
 </script></body></html>
